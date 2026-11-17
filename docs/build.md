@@ -30,8 +30,9 @@ Tres niveles, porque este equipo no puede compilar Android (ver
 | JUnit4 | 4.13.2 | `:core` (testImplementation) |
 | JDK de build | **21** (temurin en CI, OpenJDK 21.0.13 en el Moto) | `setup-java` / host |
 | Bytecode / `jvmTarget` | **17** | `compileOptions` en `:app`, `java` + `kotlin.compilerOptions` en `:core` |
-| compileSdk / targetSdk / minSdk | **36 / 36 / 26** | `app/build.gradle.kts` |
-| Android SDK en CI | `platforms;android-36`, `build-tools;36.0.0` | `android-actions/setup-android` |
+| compileSdk | **37.0** (`compileSdk = 37` + `compileSdkMinor = 0`) | `app/build.gradle.kts` |
+| targetSdk / minSdk | **36 / 26** | `app/build.gradle.kts` |
+| Android SDK en CI | `platforms;android-37.0`, `build-tools;36.0.0` + `build-tools;37.0.0` | `android-actions/setup-android` |
 
 Notas de la matriz:
 
@@ -57,7 +58,16 @@ Notas de la matriz:
 - No se declara `toolchain(17)`: en el Moto solo existe JDK 21 y un toolchain 17
   obligaría a descargar otro JDK. El bytecode sale 17 igual (`jvmTarget` y
   `sourceCompatibility`/`targetCompatibility` = 17).
-- `minSdk 26`, `compileSdk 36` y `targetSdk 36` son los del ticket GIM-1.
+- **`compileSdk` sube a 37.0, `targetSdk` queda en 36.** El ticket pedía 36/36, pero
+  `androidx.core:core-ktx:1.19.1` y el Compose BOM 2026.09.00 (compose 1.12.1)
+  declaran `minCompileSdk=37` en su AAR metadata: con `compileSdk 36` el build
+  falla en `:app:checkDebugAarMetadata` (13 issues). Se prefiere respetar las
+  versiones pinneadas de la §5 antes que bajarlas. Detalle del SDK: la API 37 se
+  publica como `platforms;android-37.0` (con minor), no como `android-37`; por eso
+  `compileSdk = 37` va acompañado de `compileSdkMinor = 0` (si no, AGP busca
+  `android-37` y falla "Failed to find target with hash string 'android-37'").
+  `targetSdk` sigue en 36: compilar contra 37 no cambia el comportamiento de target.
+- `minSdk 26` es el del ticket GIM-1.
 - No hay dependencias fuera del catálogo.
 
 ## Gate local (`:core` sin Android SDK)
