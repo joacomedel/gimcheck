@@ -24,7 +24,7 @@ sombra o un ícono, preguntarse qué problema resuelve. La respuesta por defecto
 | Todo redondeado 28 dp + animaciones con rebote | default del tema | Radio **10 dp** (12 en hojas), motion ≤ 150 ms, sin rebotes |
 | 5 acentos y 3 tipografías | entusiasmo | 1 acento, 1 semáforo (ok/warn/bad), 2 familias tipográficas |
 | Title Case y mayúsculas gritadas | relleno | *Sentence case* en todo; mayúsculas sólo en la tipografía display (Barlow) con `letterSpacing` chico |
-| Placeholders "Lorem ipsum" / copy genérico | falta de dominio | Cada pantalla define sus textos reales en `strings.xml` (español rioplatense, voseo: "Anotá", "Elegí") |
+| Placeholders "Lorem ipsum" / copy genérico | falta de dominio | Cada pantalla define sus textos reales en `app/src/main/res/values/strings.xml` (español rioplatense, voseo: "Anotá", "Elegí") |
 | Pantalla muerta sin datos | no se pensó el estado vacío | Estado vacío = 1 frase + 1 acción. Siempre |
 
 ## 3. Tokens
