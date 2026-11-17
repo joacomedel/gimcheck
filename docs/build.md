@@ -1,81 +1,127 @@
 # Build y verificación — GimCheck
 
-Dos niveles, porque este equipo no puede compilar Android (ver `docs/analisis-tecnico.md` §3):
+Tres niveles, porque este equipo no puede compilar Android (ver
+`docs/analisis-tecnico.md` §3 y ADR 0002):
 
 | Nivel | Dónde | Comando | Qué cubre |
 |---|---|---|---|
 | L0/L1 (lógica) | Moto | `scripts/check-core.sh` | `:core` (dominio + máquina de estados + JSON), sin Android SDK |
-| L2 (APK) | GitHub Actions | push a `master` / PR | `:core:test` + `lint` + `assembleDebug` + artifact `gimcheck-debug.apk` |
-| L3 (dispositivo) | teléfono del dueño | checklist `docs/qa.md` | instalación, alertas de descanso, vibración, sonido, cronómetro con app cerrada |
+| L2 (APK) | GitHub Actions | push a `master` / PR | `:core:test` + `:app:lintDebug` + `:app:assembleDebug` + artifact `gimcheck-debug.apk` |
+| L3 (dispositivo) | teléfono del dueño | checklist de QA | instalación, alertas de descanso, vibración, sonido, cronómetro con app cerrada |
 
-## Toolchain
+## Matriz de versiones final (la que compila en CI)
 
-| Pieza | Versión | Nota |
+| Pieza | Versión | Dónde se declara |
 |---|---|---|
-| JDK | OpenJDK 21.0.13 (arm64, Debian) | instalado 2026-11-17, 287 MB en disco |
-| Gradle | 9.9.1 | wrapper en el repo |
-| AGP | 9.5.1 | fallback documentado: 8.13.2 |
-| Kotlin | 2.4.21 | |
-| KSP | 2.3.14 | Room |
-| Android SDK | API 36 (platform + build-tools) | **solo en CI**; no se instala acá |
-| minSdk / targetSdk | 26 / 36 | |
+| Gradle | **9.9.1** | `gradle/wrapper/gradle-wrapper.properties` (wrapper) |
+| Android Gradle Plugin | **9.5.1** | `gradle/libs.versions.toml` → `agp`, aplicado **solo** en `app/build.gradle.kts` |
+| Kotlin (KGP) | **2.4.21** | catálogo (`kotlin`) + `buildscript` del root (AGP 9.5.1 trae 2.2.10; se sube a 2.4.21) |
+| Compose compiler | **2.4.21** | plugin `org.jetbrains.kotlin.plugin.compose` (misma versión que Kotlin) |
+| KSP | 2.3.14 | catálogo (`ksp`); se aplica recién con Room (GIM-9) |
+| Compose BOM | 2026.09.00 | catálogo (`composeBom`) |
+| Room | 2.8.5 | catálogo (`room`); sin aplicar todavía |
+| activity-compose | 1.13.0 | catálogo |
+| navigation-compose | 2.10.2 | catálogo |
+| lifecycle-* | 2.11.0 | catálogo |
+| androidx.core-ktx | 1.19.1 | catálogo |
+| kotlinx-serialization-json | 1.13.0 | catálogo |
+| kotlinx-datetime | 0.8.0 | `:core` (implementation) |
+| Robolectric | 4.18 | catálogo (tests de UI en JVM, más adelante) |
+| JUnit4 | 4.13.2 | `:core` (testImplementation) |
+| JDK de build | **21** (temurin en CI, OpenJDK 21.0.13 en el Moto) | `setup-java` / host |
+| Bytecode / `jvmTarget` | **17** | `compileOptions` en `:app`, `java` + `kotlin.compilerOptions` en `:core` |
+| compileSdk / targetSdk / minSdk | **36 / 36 / 26** | `app/build.gradle.kts` |
+| Android SDK en CI | `platforms;android-36`, `build-tools;36.0.0` | `android-actions/setup-android` |
 
-## Medición del costo local (2026-11-17)
+Notas de la matriz:
 
-Contexto del equipo al medir: 3.4 GiB RAM (2.1 GiB disponibles), `soc-thmzone` 33–36 °C,
-8 núcleos, `taskset -c 0-1`.
+- **AGP 9 tiene Kotlin built-in**: no se aplica `org.jetbrains.kotlin.android`
+  (sería un error de configuración). `:app` aplica `com.android.application` +
+  `org.jetbrains.kotlin.plugin.compose`.
+- AGP 9.5.1 declara una dependencia de runtime a KGP **2.2.10**. El root hace el
+  upgrade documentado (`buildscript { classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21") }`)
+  para que Kotlin y el compilador de Compose queden en 2.4.21.
+- No se declara `toolchain(17)`: en el Moto solo existe JDK 21 y un toolchain 17
+  obligaría a descargar otro JDK. El bytecode sale 17 igual (`jvmTarget` y
+  `sourceCompatibility`/`targetCompatibility` = 17).
+- `minSdk 26`, `compileSdk 36` y `targetSdk 36` son los del ticket GIM-1.
+- No hay dependencias fuera del catálogo.
 
-Sonda real: proyecto `kotlin("jvm")` 2.4.21 + Gradle 9.9.1 con 3 tests (port de `groups()` y
-`dayStats()` del HTML). Medido con `taskset -c 0-1` y muestreo de `/proc/*/statm`.
-
-| Operación | Tiempo | RAM pico | Temp |
-|---|---|---|---|
-| `apt-get install openjdk-21-jdk-headless` | 20,3 s | — | 36,2 → 36,2 °C |
-| `gradle test` **en frío** (descarga plugin Kotlin + JUnit, sin caché) | **2 m 31 s** | — | 35,1 °C |
-| `gradle test` recompilando tests, `--no-daemon` | **1 m 03 s** | 398 MB (java+gradle) | 35,7 °C |
-| `gradle test` con daemon, primer run tras compilar | **25,4 s** | 325 MB (daemon idle) | 36,2 °C |
-| `gradle test` con daemon, sin cambios | **3,3 s** | 325 MB | 36,2 °C |
-
-Conclusiones medidas:
-
-- El gate local **es barato**: pico 400 MB (no 1,5 GB como se estimó) y la temperatura no se movió
-  (33–36 °C en todo el proceso). Cabe en el presupuesto del equipo con margen.
-- El régimen útil es **con daemon** (3–25 s). `--no-daemon` cuesta ~1 min por corrida y no libera
-  casi nada porque igual forkea una JVM de un solo uso.
-- Recomendación: dejar el daemon prendido durante una sesión de trabajo y liberarlo con
-  `gradle --stop` al terminar (deja 325 MB tomados si queda vivo).
-- Gradle 9.9.1 quedó instalado en `/root/tools/gradle-9.9.1` (fuera de tmpfs: `/tmp` es RAM).
-- La caché de dependencias vive en `~/.gradle` (213 MB tras la sonda): el primer build del repo
-  real ya no vuelve a descargar el plugin de Kotlin.
-
-> El ticket GIM-2 repite esta medición sobre el `:core` real del repo y ajusta el presupuesto del
-> script (techo sugerido: fallar si `:core:test` en caliente pasa de 30 s).
-
-## Gate local
+## Gate local (`:core` sin Android SDK)
 
 ```bash
-./scripts/check-core.sh          # taskset 0-1, daemon, -Xmx768m, aborta si temp > 58 °C
+./scripts/check-core.sh        # = gradle -PcoreOnly :core:test, con guardas
 ```
 
-Presupuesto medido en la sonda (2026-11-17): **3,3 s sin cambios / 25 s recompilando / 1 min en
-frío**, pico **~400 MB**, temperatura estable en 33–36 °C. Guardas: no arranca con menos de 800 MB
-de RAM libre ni con la zona térmica más caliente ≥ 55 °C; aborta si se sostiene ≥ 58 °C. Una
-corrida a la vez (nada de builds en paralelo con otras sesiones). Al cerrar la sesión de trabajo:
-`gradle --stop`.
+Equivale a:
+
+```bash
+taskset -c 0-1 gradle --daemon -Dorg.gradle.jvmargs=-Xmx768m -PcoreOnly :core:test
+```
+
+**Por qué `-PcoreOnly` y no `-c settings-core.gradle.kts`:** Gradle 9 eliminó
+`-c`/`--settings-file` y `-b`/`--build-file` (ver *Upgrading to Gradle 9.0*,
+"Removal of custom build layout options"). El settings reducido sigue existiendo
+en `settings-core.gradle.kts` y **solo incluye `:core`**; `settings.gradle.kts`
+lo aplica cuando se pasa `-PcoreOnly` y en ese modo **no incluye `:app`**, así
+que `app/build.gradle.kts` no se evalúa y AGP nunca se resuelve. Ese es el
+punto que mantiene el gate sin Android SDK: AGP está declarado únicamente en
+`app/build.gradle.kts`, nunca en el root ni en `settings`.
+
+Guardas del script: no arranca con menos de 800 MB de RAM libre ni con la zona
+térmica más caliente ≥ 55 °C; corre con `taskset -c 0-1`, `-Xmx768m`, y avisa si
+al terminar la temperatura llegó a 58 °C. Una corrida a la vez. Al cerrar la
+sesión de trabajo: `gradle --stop`.
+
+### Medición sobre el `:core` real (2026-11-17, este equipo)
+
+Equipo: 3.4 GiB RAM (1.8 GiB disponibles), 8 núcleos, `taskset -c 0-1`.
+
+| Operación | Tiempo | RAM pico (procesos `java`) | Temp |
+|---|---|---|---|
+| `gradle -PcoreOnly wrapper` (primer arranque del daemon, resuelve KGP) | 2 m 25 s | — | 48 °C |
+| `gradle -PcoreOnly :core:test` en frío (baja kotlinx-datetime, JUnit y kotlin-test) | **1 m 22 s** | **755 MB** | 48 °C |
+| `gradle -PcoreOnly :core:test` sin cambios (daemon caliente) | **9 s** | 755 MB | 49 °C |
+
+Conclusiones:
+
+- El gate local sirve: **9 s** en régimen y pico ~755 MB. Queda por debajo del
+  techo de RAM del equipo y la temperatura no pasó de 49 °C.
+- El número de RAM es más alto que la sonda de `docs/analisis-tecnico.md`
+  (400 MB) porque ahí se medía el daemon solo; acá suma el worker de tests.
+- El primer arranque del daemon (2–2,5 min) es único por sesión, no es el régimen.
 
 ## CI (GitHub Actions)
 
-- Runner `ubuntu-latest` (x86_64, 4 vCPU, 16 GB) — el único lugar donde existe `aapt2`.
-- Caché de Gradle con `gradle/actions/setup-gradle`; el SDK de Android se instala con
-  `android-actions/setup-android`.
-- Artifact `gimcheck-debug.apk` en cada push a `master` (retención 30 días).
-- Release con APK adjunto en cada tag `v*`; `versionName` = tag, `versionCode` = run number.
-- Repositorio **público** → minutos ilimitados (decisión del dueño 2026-11-17, ADR 0002).
+`.github/workflows/build.yml`, disparadores `push` a `master`, `pull_request` y
+`workflow_dispatch`:
+
+1. `actions/checkout@v7`
+2. `actions/setup-java@v6` — temurin **21**
+3. `gradle/actions/setup-gradle@v6` — caché de `~/.gradle`
+4. `android-actions/setup-android@v4` — `platforms;android-36` + `build-tools;36.0.0`
+5. `./gradlew :core:test`
+6. `./gradlew :app:lintDebug`
+7. `./gradlew :app:assembleDebug`
+8. `actions/upload-artifact@v7` — **name `gimcheck-debug.apk`**,
+   `path: app/build/outputs/apk/debug/app-debug.apk`, retención 30 días
+
+Cómo se genera el APK: `assembleDebug` compila `:core`, compila `:app` (Kotlin
+built-in de AGP + Compose compiler 2.4.21), procesa recursos con `aapt2`,
+dexea con D8 y firma con el debug keystore autogenerado por AGP. El archivo queda
+en `app/build/outputs/apk/debug/app-debug.apk`.
+
+Runner `ubuntu-latest` (x86_64, 4 vCPU, 16 GB): el único lugar donde existe
+`aapt2`. Repositorio **público** → minutos ilimitados (ADR 0002).
 
 ## Trampas del entorno
 
-- No hay `unzip` (usar `python3 -c "import zipfile; zipfile.ZipFile(...).extractall('.')"`).
-- No hay `/usr/bin/time` (medir RSS con `python3 -c "import resource; ..."` sobre `RUSAGE_CHILDREN`).
-- `/tmp` es tmpfs: no descomprimir el SDK ahí.
-- El primer `gradle test` de un módulo nuevo descarga el plugin de Kotlin (~90 MB) y tarda
-  minutos; no confundir eso con el régimen (medir frío y caliente).
+- **`-c`/`--settings-file` ya no existe en Gradle 9**: cualquier documento o
+  script que lo use está roto. Usar `-PcoreOnly` (o `-p <dir>`).
+- No hay `unzip` (usar `python3 -c "import zipfile; ..."`).
+- No hay `/usr/bin/time` (medir RSS con `ps -eo rss,comm` o `/proc/*/statm`).
+- `/tmp` es tmpfs: los logs y artefactos grandes van a `/tmp/opencode` y se
+  borran al terminar.
+- `gradle --stop` al cerrar: el daemon deja ~750 MB tomados si queda vivo.
+- El perfil del agente implementador deniega el patrón `git push*`; en este
+  ticket el dueño autorizó el push (ver el ticket GIM-1).
