@@ -1,9 +1,11 @@
-# Matriz de versiones de GimCheck. Fuente: docs/analisis-tecnico.md §5.
+# Matriz de versiones de GimCheck. Fuente: docs/analisis-tecnico.md §5, con la
+# excepción de Kotlin: AGP 9.5.1 usa built-in Kotlin y solo soporta la KGP que trae
+# (2.2.10); con 2.4.21 falla con NoClassDefFoundError BaseVariant. Ver docs/build.md.
 # Cualquier cambio acá se refleja en docs/build.md.
 
 [versions]
 agp = "9.5.1"
-kotlin = "2.4.21"
+kotlin = "2.2.10"
 ksp = "2.3.14"
 composeBom = "2026.09.00"
 room = "2.8.5"
