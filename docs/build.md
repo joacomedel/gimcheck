@@ -160,6 +160,10 @@ Conclusiones:
 - Con KGP 2.2.10 el régimen "sin cambios" con el daemon ya caliente quedó medido
   en GIM-2 (tabla siguiente): **18–21 s** con `--rerun`, no los 3 s de una
   corrida `UP-TO-DATE`.
+- El 499 MB de la fila de GIM-1 no es comparable con las 433–442 MB de abajo: se
+  midió con un `ps` puntual y el daemon venía con el `-Xmx3g` de
+  `gradle.properties`; el script actual suma `/proc/<pid>/statm` cada segundo con
+  `-Xmx768m`.
 - Pico de RAM de los procesos `java`: ~750 MB. Es más alto que la sonda de
   `docs/analisis-tecnico.md` (400 MB) porque ahí se medía el daemon solo; acá suma
   el worker de tests y el daemon de Kotlin.
@@ -172,10 +176,14 @@ los procesos `java` del build; la temperatura es la zona más caliente.
 
 | Régimen | Cómo se provoca | Tiempo | RSS pico | Temperatura (inicio → pico → final) |
 |---|---|---|---|---|
-| **Frío** (compila todo) | `gradle --stop` + `rm -rf core/build` | **77 s** | 440 MB | 42,8 → **50,3** → 48,0 °C |
-| Sin cambios, **daemon nuevo** (uso normal del script, que hace `--stop` al final) | correr el script dos veces seguidas | **109 s** (repetido 2×) | 433–436 MB | 48,2 → **49,5** → 48,8 °C |
-| Sin cambios, **daemon vivo** (régimen real de trabajo) | `KEEP_DAEMON=1` | **18–21 s** | 441 MB | 47,2 → **49,5** → 47,7 °C |
+| **Frío** (compila todo) | `gradle --stop` + `rm -rf core/build` | **77–105 s** | 434–440 MB | 42,8 → **50,3** → 48,0 °C (arrancando a 42,8) |
+| Sin cambios, **daemon nuevo** (uso normal del script, que hace `--stop` al final) | correr el script dos veces seguidas | **93–109 s** | 431–436 MB | 48,2 → **49,5** → 48,8 °C |
+| Sin cambios, **daemon vivo** (régimen real de trabajo) | `KEEP_DAEMON=1` | **18–21 s** | 441–442 MB | 47,2 → **50,0** → 47,7 °C |
 | Arranque de daemon solo (para entender la diferencia) | `gradle -PcoreOnly help` | 78 s en frío, 9,9 s con daemon vivo | — | — |
+
+Las dos primeras filas varían con la temperatura de partida: la corrida fría de
+77 s arrancó a 42,8 °C y la de 105 s a 53,4 °C (el equipo ya venía caliente), con
+el mismo trabajo. La tercera fila es estable porque son 18 s.
 
 Lo que dicen estos números:
 
@@ -185,10 +193,10 @@ Lo que dicen estos números:
   uso normal —que apaga el daemon al final— cuesta ~109 s. No es el test: es el
   bootstrap.
 - Presupuesto: **régimen ≤ 30 s** (medido 18–21 s, 40 % de margen) y
-  **frío ≤ 120 s** (medido 77 s). El techo duro del script queda en **180 s**
-  porque tiene que cubrir el peor caso legítimo medido (109 s) con margen, y
-  fallar por encima de eso sí indica algo roto (resolución de dependencias,
-  swap, equipo cargado).
+  **frío ≤ 120 s** (medido 77–105 s; el tope cubre el arranque de daemon + compilación).
+  El techo duro del script queda en **180 s** porque tiene que cubrir el peor caso
+  legítimo medido (109 s) con margen, y fallar por encima de eso sí indica algo
+  roto (resolución de dependencias, swap, equipo cargado).
 - Para exigir el presupuesto de régimen en una corrida concreta:
   `KEEP_DAEMON=1 TIME_LIMIT_SECS=30 ./scripts/check-core.sh` → `exit 3` si el
   test en caliente pasa de 30 s. No se puede poner 30 s por defecto porque el
@@ -196,6 +204,17 @@ Lo que dicen estos números:
 - Térmico: el peor pico medido en régimen limpio fue **50,3 °C** (frío). Con el
   equipo ya cargado por otra sesión se vieron **60,4 °C** y, en el cierre de
   GIM-1, 65 °C; por eso el aborto a 58 °C sostenidos existe y mata el build.
+
+Las guardas se probaron forzando los umbrales, no sólo leyendo el código:
+
+| Prueba | Resultado |
+|---|---|
+| `MIN_FREE_MB=999999 ./scripts/check-core.sh` | `ABORTA — RAM libre 2133 MB < 999999 MB`, `exit 1` |
+| `START_MAX_TEMP_C=1 ./scripts/check-core.sh` | `ABORTA — 49,0 °C >= 1 °C`, `exit 1` |
+| guarda real, sin forzar: arranque a **55,0 °C** | `ABORTA — 55,0 °C >= 55 °C`, `exit 1` (y no quedó daemon) |
+| `ABORT_TEMP_C=1 TEMP_SUSTAIN_SECS=2` | mata el build a los 3 s, `exit 4`, cero procesos `java` después |
+| `TIME_LIMIT_SECS=3` | mata el build a los 6 s, `exit 3` |
+| test rojo inyectado (`assertTrue(false)`) | `BUILD FAILED`, re-ejecuta con `--stacktrace`, `exit 2` |
 
 ## CI (GitHub Actions)
 
