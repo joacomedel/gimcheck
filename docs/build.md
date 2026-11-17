@@ -130,12 +130,18 @@ Conclusiones:
 1. `actions/checkout@v7`
 2. `actions/setup-java@v6` — temurin **21**
 3. `gradle/actions/setup-gradle@v6` — caché de `~/.gradle`
-4. `android-actions/setup-android@v4` — `platforms;android-36` + `build-tools;36.0.0`
+4. `android-actions/setup-android@v4` — `platforms;android-37.0` + `build-tools;36.0.0` y `37.0.0`
 5. `./gradlew :core:test`
 6. `./gradlew :app:lintDebug`
 7. `./gradlew :app:assembleDebug`
 8. `actions/upload-artifact@v7` — **name `gimcheck-debug.apk`**,
    `path: app/build/outputs/apk/debug/app-debug.apk`, retención 30 días
+
+Última verificación conocida (2026-11-17): run
+[44181579353](https://github.com/joacomedel/gimcheck/actions/runs/44181579353) en
+`success` sobre `master` (2 m 6 s): `:core:test` ✓, `:app:lintDebug` ✓,
+`:app:assembleDebug` ✓ y artifact `gimcheck-debug.apk` publicado (11,3 MiB;
+contiene `app-debug.apk`, 11.826.237 bytes, 120 entradas, `classes.dex` de 18,6 MB).
 
 Cómo se genera el APK: `assembleDebug` compila `:core`, compila `:app` (Kotlin
 built-in de AGP + Compose compiler 2.2.10), procesa recursos con `aapt2`,
