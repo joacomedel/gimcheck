@@ -107,6 +107,7 @@ Equipo: 3.4 GiB RAM (1.8 GiB disponibles), 8 núcleos, `taskset -c 0-1`.
 | `gradle -PcoreOnly :core:test` sin cambios (daemon caliente, KGP 2.4.21) | **9 s** | 755 MB | 49 °C |
 | cambio a KGP 2.2.10: primera corrida (baja KGP 2.2.10, recompila todo) | **~6 min** (quedó cortada por tiempo de mi comando, el build terminó igual) | — | hasta 65 °C ⚠️ |
 | segunda corrida con KGP 2.2.10, con el daemon ya caliente | 4 m 4 s (con el server de opencode y otro daemon de Kotlin compitiendo por los 8 núcleos) | 736 MB | 65 °C ⚠️ |
+| `./scripts/check-core.sh` en HEAD (KGP 2.2.10, daemon arrancando, sin otra carga) | **54 s** | **499 MB** | 52 °C |
 
 Conclusiones:
 
@@ -115,9 +116,12 @@ Conclusiones:
   KGP 2.2.10 entrando por primera vez y con el equipo ya cargado por otra sesión.
   El pico térmico de 65 °C supera el techo de la política local (58 °C) y es la
   razón por la que este ticket se verificó el APK en CI y no acá.
-- Con KGP 2.4.21 el régimen medido era 9 s sin cambios; con 2.2.10 falta repetir
-  esa medición en frío limpio (queda para GIM-2, que es el ticket del gate) antes
-  de fijar el techo de 30 s del script.
+- La corrida final en HEAD (`./scripts/check-core.sh`, daemon arrancando, equipo
+  sin otra carga) dio **54 s, 499 MB y 52 °C**: ese es el número que hay que usar
+  como referencia hoy. Las corridas de 2m40s–4m4s fueron con el equipo cargado.
+- Con KGP 2.2.10 falta medir el régimen "sin cambios" con el daemon ya caliente
+  (queda para GIM-2, que es el ticket del gate) antes de fijar el techo de 30 s
+  del script.
 - Pico de RAM de los procesos `java`: ~750 MB. Es más alto que la sonda de
   `docs/analisis-tecnico.md` (400 MB) porque ahí se medía el daemon solo; acá suma
   el worker de tests y el daemon de Kotlin.
