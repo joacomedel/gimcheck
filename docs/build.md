@@ -231,17 +231,17 @@ Las guardas se probaron forzando los umbrales, no sólo leyendo el código:
 8. `actions/upload-artifact@v7` — **name `gimcheck-debug.apk`**,
    `path: app/build/outputs/apk/debug/app-debug.apk`, retención 30 días
 
-Última verificación conocida (2026-11-17): run
-[44203129493](https://github.com/joacomedel/gimcheck/actions/runs/44203129493) en
-`success` sobre `master` en `89120ce` (1 m 13 s): `:core:test` ✓, `:app:lintDebug` ✓,
-`:app:assembleDebug` ✓ y artifact `gimcheck-debug.apk` publicado: **11.359.281 B**
-(11,36 MB decimales / 10,83 MiB), que contiene `app-debug.apk` de 11.826.237 B
-(120 entradas, multidex: `classes.dex` 18,6 MB + `classes6.dex` 10,8 MB).
+Última verificación al escribir esto (2026-11-17): run
+[44203803099](https://github.com/joacomedel/gimcheck/actions/runs/44203803099) en `success` sobre
+`master` en `965bcdb` (1 m 19 s), con `:core:test` ✓, `:app:lintDebug` ✓, `:app:assembleDebug` ✓
+y artifact `gimcheck-debug.apk` de **11.359.283 B** (11,36 MB decimales / 10,83 MiB), que contiene
+`app-debug.apk` de 11.826.237 B (120 entradas, multidex: `classes.dex` 18,6 MB + `classes6.dex`
+10,8 MB).
 
-Ese es el run **del HEAD**. Dos citas viejas que no hay que volver a usar: `44181579353`
-(`c0286cd`, 2 m 6 s) y `44183688530` (`2eb25a7`, 49 s) fueron verdes en commits anteriores;
-cada vez que se mueve `master` el run de referencia es el último verde del HEAD
-(`gh run list --repo joacomedel/gimcheck --workflow build.yml --limit 5`).
+El run de referencia es **siempre el último verde del HEAD**, no el de esta cita:
+`gh run list --repo joacomedel/gimcheck --workflow build.yml --limit 5`. Corridas anteriores que
+no hay que citar como estado actual: `44203129493` (`89120ce`), `44183688530` (`2eb25a7`),
+`44181579353` (`c0286cd`).
 
 Cómo se genera el APK: `assembleDebug` compila `:core`, compila `:app` (Kotlin
 built-in de AGP + Compose compiler 2.2.10), procesa recursos con `aapt2`,

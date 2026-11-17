@@ -52,9 +52,10 @@ gh workflow run build.yml --repo joacomedel/gimcheck --ref master
 gh run list --repo joacomedel/gimcheck --workflow build.yml --limit 5
 ```
 
-Última corrida verde sobre el HEAD (`89120ce`): run
-[44203129493](https://github.com/joacomedel/gimcheck/actions/runs/44203129493), `success`,
-1 m 13 s, artifact de 11.359.281 B (11,36 MB / 10,83 MiB).
+Última corrida verde al escribir esto: run
+[44203803099](https://github.com/joacomedel/gimcheck/actions/runs/44203803099), `success`, 1 m 19 s,
+artifact de 11.359.283 B (11,36 MB / 10,83 MiB). Para el estado actual, siempre
+`gh run list --repo joacomedel/gimcheck --workflow build.yml --limit 5`.
 
 No hay `connectedAndroidTest`, no hay emulador (ni acá ni en CI) y no se puede correr
 `:app:assembleDebug` en el Moto. Cualquier instrucción que diga lo contrario está vieja.
