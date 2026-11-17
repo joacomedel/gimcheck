@@ -1,11 +1,12 @@
-// Build raíz. NO declara AGP a propósito: settings-core.gradle.kts evalúa este
-// archivo en el gate local, y el gate tiene que correr sin Android SDK.
-// AGP se declara únicamente en app/build.gradle.kts (ver docs/build.md).
+// Build raíz deliberadamente vacío.
 //
-// Tampoco se fuerza una versión de KGP con buildscript{classpath(...)}: AGP 9.5.1
-// usa built-in Kotlin y construye un KotlinAndroidTarget de la KGP que trae
-// (2.2.10). Forzar 2.4.21 rompe en la aplicación del plugin
-// (NoClassDefFoundError: com.android.build.gradle.api.BaseVariant).
-plugins {
-    alias(libs.plugins.kotlin.jvm) apply false
-}
+// Dos reglas que sostienen este repo:
+//  1. NO declarar AGP acá (ni con `apply false`): settings-core.gradle.kts evalúa
+//     este archivo en el gate local, y el gate tiene que correr sin Android SDK.
+//     AGP se declara únicamente en app/build.gradle.kts.
+//  2. NO declarar KGP acá (ni `kotlin("jvm") apply false`): declarar KGP en el
+//     root lo carga en el classloader del proyecto raíz, y entonces el built-in
+//     Kotlin de AGP 9 resuelve `KotlinAndroidTarget` desde ese scope, donde las
+//     clases de AGP no son visibles:
+//       NoClassDefFoundError: com.android.build.gradle.api.BaseVariant
+//     Cada módulo declara su propio plugin (core: kotlin-jvm; app: AGP + compose).

@@ -38,6 +38,13 @@ Notas de la matriz:
 - **AGP 9 tiene Kotlin built-in**: no se aplica `org.jetbrains.kotlin.android`
   (sería un error de configuración). `:app` aplica `com.android.application` +
   `org.jetbrains.kotlin.plugin.compose`.
+- **El root `build.gradle.kts` está vacío a propósito.** Declarar KGP ahí (aunque
+  sea con `apply false`) mete KGP en el classloader del proyecto raíz; el built-in
+  Kotlin de AGP resuelve entonces `KotlinAndroidTarget` desde ese scope, donde las
+  clases de AGP no son visibles, y el build muere con
+  `NoClassDefFoundError: com.android.build.gradle.api.BaseVariant`. Cada módulo
+  declara su plugin: `:core` `kotlin("jvm")`, `:app` `com.android.application` +
+  `plugin.compose`.
 - **Kotlin queda en 2.2.10, no en 2.4.21** (§5 del análisis técnico proponía 2.4.21).
   AGP 9.5.1 usa built-in Kotlin y construye un `KotlinAndroidTarget` de la KGP que
   trae. Con el upgrade documentado a KGP 2.4.21 el build muere al aplicar
