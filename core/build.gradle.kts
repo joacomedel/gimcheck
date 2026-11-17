@@ -1,0 +1,33 @@
+// :core = dominio Kotlin puro. Sin Android, sin Compose (ADR 0006).
+// Se compila y testea en el Moto con settings-core.gradle.kts.
+plugins {
+    alias(libs.plugins.kotlin.jvm)
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+kotlin {
+    compilerOptions {
+        // JDK 17 de bytecode. El host es JDK 21 en el Moto y en CI; no se declara
+        // toolchain(17) porque exigiría descargar un JDK 17 que el equipo no tiene.
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+dependencies {
+    implementation(libs.kotlinx.datetime)
+
+    testImplementation(libs.junit4)
+    testImplementation(libs.kotlin.test.junit)
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnit()
+    testLogging {
+        events("passed", "failed", "skipped")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
