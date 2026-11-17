@@ -73,8 +73,21 @@ Notas de la matriz:
 ## Gate local (`:core` sin Android SDK)
 
 ```bash
-./scripts/check-core.sh        # = gradle -PcoreOnly :core:test, con guardas
+make check                     # = ./scripts/check-core.sh (guardas + medición)
+./scripts/check-core.sh        # lo mismo, sin make
 ```
+
+`make` tiene cuatro atajos, y ninguno miente sobre lo que corre:
+
+| Target | Qué hace | Dónde corre |
+|---|---|---|
+| `make check` | `scripts/check-core.sh`: compila `:core` y corre sus tests con guardas | Moto |
+| `make check-ci` | el paso que sí se puede correr acá de lo que hace CI (`:core:test`), e imprime los dos que no | Moto (parcial) |
+| `make build` | no compila acá: imprime el `gh` exacto para disparar/leer/bajar el APK de CI | CI |
+| `make stop` | `gradle --stop` (libera ~750 MB del daemon) | Moto |
+
+`check-ci` es parcial por necesidad: `:app:lintDebug` y `:app:assembleDebug`
+necesitan `aapt2`/D8 para linux-arm64, que no existe. Corre en CI.
 
 Equivale a:
 
@@ -91,10 +104,35 @@ que `app/build.gradle.kts` no se evalúa y AGP nunca se resuelve. Ese es el
 punto que mantiene el gate sin Android SDK: AGP está declarado únicamente en
 `app/build.gradle.kts`, nunca en el root ni en `settings`.
 
-Guardas del script: no arranca con menos de 800 MB de RAM libre ni con la zona
-térmica más caliente ≥ 55 °C; corre con `taskset -c 0-1`, `-Xmx768m`, y avisa si
-al terminar la temperatura llegó a 58 °C. Una corrida a la vez. Al cerrar la
-sesión de trabajo: `gradle --stop`.
+Guardas del script (todas cortan de verdad; no son avisos):
+
+| Guarda | Umbral | Qué hace |
+|---|---|---|
+| RAM libre | `< MIN_FREE_MB` (800 MB) | no arranca, `exit 1` |
+| Temperatura al arrancar | `>= 55 °C` en la zona más caliente | no arranca, `exit 1` |
+| Temperatura sostenida | `>= 58 °C` durante 5 s seguidos | **mata el build** (`SIGTERM` al cliente y al daemon), `exit 4` |
+| Techo de tiempo | `> TIME_LIMIT_SECS` (180 s por defecto) | **mata el build**, `exit 3` |
+| Tests | `:core:test` en rojo | `exit 2` (re-ejecuta con `--stacktrace` para ver la traza) |
+
+Corre con `taskset -c 0-1`, daemon habilitado y `-Dorg.gradle.jvmargs=-Xmx768m`
+(el `gradle.properties` del repo pide `-Xmx3g`, que es para CI). Fuerza
+`:core:test --rerun` porque sin eso la segunda corrida sale `UP-TO-DATE` en 3 s
+y no verifica nada: sólo se re-ejecuta el test, no el `compileKotlin`.
+
+Medición: no hay `/usr/bin/time` en el equipo. El script muestrea cada segundo
+`/proc/<pid>/statm` de los procesos `java` del build (árbol del cliente + daemon
++ worker de tests + daemon de Kotlin) para el RSS pico, y
+`/sys/class/thermal/thermal_zone*/temp` para la temperatura. Al final imprime
+tiempo total, RSS pico y temperatura (inicio, pico, final), y deja el log en
+`/tmp/opencode/check-core-<fecha>-<pid>.log`.
+
+Al terminar hace `gradle --stop` (el daemon se queda con ~750 MB si sigue vivo).
+Para medir régimen sin pagar el arranque del daemon en cada corrida:
+`KEEP_DAEMON=1 ./scripts/check-core.sh`, y al cerrar la sesión `make stop`.
+
+Una corrida a la vez: si otra sesión tiene trabajo pesado en los núcleos 0-1,
+los números no sirven (medido: 105 s en vez de 21 s por una compilación de otro
+proyecto). El script no lo detecta; mirá la carga antes de medir.
 
 ### Medición sobre el `:core` real (2026-11-17, este equipo)
 
@@ -119,12 +157,45 @@ Conclusiones:
 - La corrida final en HEAD (`./scripts/check-core.sh`, daemon arrancando, equipo
   sin otra carga) dio **54 s, 499 MB y 52 °C**: ese es el número que hay que usar
   como referencia hoy. Las corridas de 2m40s–4m4s fueron con el equipo cargado.
-- Con KGP 2.2.10 falta medir el régimen "sin cambios" con el daemon ya caliente
-  (queda para GIM-2, que es el ticket del gate) antes de fijar el techo de 30 s
-  del script.
+- Con KGP 2.2.10 el régimen "sin cambios" con el daemon ya caliente quedó medido
+  en GIM-2 (tabla siguiente): **18–21 s** con `--rerun`, no los 3 s de una
+  corrida `UP-TO-DATE`.
 - Pico de RAM de los procesos `java`: ~750 MB. Es más alto que la sonda de
   `docs/analisis-tecnico.md` (400 MB) porque ahí se medía el daemon solo; acá suma
   el worker de tests y el daemon de Kotlin.
+
+### Medición del gate con las guardas puestas (GIM-2, 2026-11-17)
+
+Todas con `./scripts/check-core.sh` (taskset 0-1, `-Xmx768m`, `:core:test --rerun`),
+equipo sin otra carga, 2.1–2.5 GB de RAM libre al arrancar. El RSS es la suma de
+los procesos `java` del build; la temperatura es la zona más caliente.
+
+| Régimen | Cómo se provoca | Tiempo | RSS pico | Temperatura (inicio → pico → final) |
+|---|---|---|---|---|
+| **Frío** (compila todo) | `gradle --stop` + `rm -rf core/build` | **77 s** | 440 MB | 42,8 → **50,3** → 48,0 °C |
+| Sin cambios, **daemon nuevo** (uso normal del script, que hace `--stop` al final) | correr el script dos veces seguidas | **109 s** (repetido 2×) | 433–436 MB | 48,2 → **49,5** → 48,8 °C |
+| Sin cambios, **daemon vivo** (régimen real de trabajo) | `KEEP_DAEMON=1` | **18–21 s** | 441 MB | 47,2 → **49,5** → 47,7 °C |
+| Arranque de daemon solo (para entender la diferencia) | `gradle -PcoreOnly help` | 78 s en frío, 9,9 s con daemon vivo | — | — |
+
+Lo que dicen estos números:
+
+- El **trabajo real** (`:core:test --rerun` con daemon vivo) es de **18–21 s**;
+  el resto es arranque de JVM. En este equipo arrancar el daemon de Gradle
+  cuesta ~78 s (JDK 21 inicializando Gradle 9.9.1 en 2 núcleos), y por eso el
+  uso normal —que apaga el daemon al final— cuesta ~109 s. No es el test: es el
+  bootstrap.
+- Presupuesto: **régimen ≤ 30 s** (medido 18–21 s, 40 % de margen) y
+  **frío ≤ 120 s** (medido 77 s). El techo duro del script queda en **180 s**
+  porque tiene que cubrir el peor caso legítimo medido (109 s) con margen, y
+  fallar por encima de eso sí indica algo roto (resolución de dependencias,
+  swap, equipo cargado).
+- Para exigir el presupuesto de régimen en una corrida concreta:
+  `KEEP_DAEMON=1 TIME_LIMIT_SECS=30 ./scripts/check-core.sh` → `exit 3` si el
+  test en caliente pasa de 30 s. No se puede poner 30 s por defecto porque el
+  uso normal (sin daemon) tarda 109 s y el gate fallaría siempre.
+- Térmico: el peor pico medido en régimen limpio fue **50,3 °C** (frío). Con el
+  equipo ya cargado por otra sesión se vieron **60,4 °C** y, en el cierre de
+  GIM-1, 65 °C; por eso el aborto a 58 °C sostenidos existe y mata el build.
 
 ## CI (GitHub Actions)
 

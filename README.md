@@ -13,13 +13,15 @@ a Kotlin + Jetpack Compose, con sesión guiada, cronómetro de descanso con alar
 ## Gate local (sin Android SDK)
 
 ```bash
-./scripts/check-core.sh     # = gradle -c settings-core.gradle.kts :core:test
+./scripts/check-core.sh     # = gradle -PcoreOnly :core:test, con guardas (o: make check)
 ```
 
 ## Build completo
 
 ```bash
-./gradlew :core:test :app:lintDebug :app:assembleDebug
+make build
+# equivalente a: gh workflow run build.yml --repo joacomedel/gimcheck --ref master
+./gradlew :core:test :app:lintDebug :app:assembleDebug   # sólo en CI / PC con Android SDK
 # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
