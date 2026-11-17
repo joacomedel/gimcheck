@@ -232,10 +232,16 @@ Las guardas se probaron forzando los umbrales, no sólo leyendo el código:
    `path: app/build/outputs/apk/debug/app-debug.apk`, retención 30 días
 
 Última verificación conocida (2026-11-17): run
-[44181579353](https://github.com/joacomedel/gimcheck/actions/runs/44181579353) en
-`success` sobre `master` (2 m 6 s): `:core:test` ✓, `:app:lintDebug` ✓,
-`:app:assembleDebug` ✓ y artifact `gimcheck-debug.apk` publicado (11,3 MiB;
-contiene `app-debug.apk`, 11.826.237 bytes, 120 entradas, `classes.dex` de 18,6 MB).
+[44203129493](https://github.com/joacomedel/gimcheck/actions/runs/44203129493) en
+`success` sobre `master` en `89120ce` (1 m 13 s): `:core:test` ✓, `:app:lintDebug` ✓,
+`:app:assembleDebug` ✓ y artifact `gimcheck-debug.apk` publicado: **11.359.281 B**
+(11,36 MB decimales / 10,83 MiB), que contiene `app-debug.apk` de 11.826.237 B
+(120 entradas, multidex: `classes.dex` 18,6 MB + `classes6.dex` 10,8 MB).
+
+Ese es el run **del HEAD**. Dos citas viejas que no hay que volver a usar: `44181579353`
+(`c0286cd`, 2 m 6 s) y `44183688530` (`2eb25a7`, 49 s) fueron verdes en commits anteriores;
+cada vez que se mueve `master` el run de referencia es el último verde del HEAD
+(`gh run list --repo joacomedel/gimcheck --workflow build.yml --limit 5`).
 
 Cómo se genera el APK: `assembleDebug` compila `:core`, compila `:app` (Kotlin
 built-in de AGP + Compose compiler 2.2.10), procesa recursos con `aapt2`,

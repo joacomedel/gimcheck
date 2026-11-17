@@ -13,3 +13,7 @@
 - **Consecuencias**: los requerimientos duros (`AlarmManager`, servicio en primer plano,
   `full-screen intent`, vibración, overlay) son código de primera clase. El costo es que el APK
   se compila solo en CI (ver ADR 0002).
+
+> Nota de implementación (GIM-1, 2026-11-17): el esqueleto ya tiene los dos módulos (`:core` con
+> `kotlin("jvm")`, `:app` con `com.android.application` + Compose) y ninguna de las dependencias
+> descartadas: sin WebView, sin DI, sin librería de gráficos, sin red.

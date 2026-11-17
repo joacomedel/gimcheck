@@ -14,3 +14,8 @@
 - **Consecuencias**: el loop visual es "push → run verde → descargar APK al teléfono". La
   verificación de alertas/cronómetro es manual y del dueño. Ningún ticket de UI se cierra sin
   indicar qué mirar en el teléfono.
+
+> Nota de implementación (GIM-1, 2026-11-17): la decisión está aplicada. Workflow
+> `.github/workflows/build.yml` con `ubuntu-latest`, JDK 21, SDK `platforms;android-37.0` y
+> artifact `gimcheck-debug.apk` (retención 30 días); local sólo `:core:test` vía
+> `scripts/check-core.sh`. Último run verde del HEAD `89120ce`: 44203129493 (1 m 13 s).

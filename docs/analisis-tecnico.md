@@ -71,8 +71,9 @@ núcleos, un build local de Android queda **fuera de presupuesto por dos motivos
 ### 3.4 Lo que sí es barato acá (medido)
 
 El **dominio** de la app (todo el cálculo de la web + máquina de estados de la sesión) es Kotlin
-puro, sin Android. Se compila y testea con JDK + Gradle en un módulo `:core` sin SDK. Medido con
-una sonda `kotlin("jvm")` 2.4.21 + Gradle 9.9.1 (`taskset -c 0-1`):
+puro, sin Android. Se compila y testea con JDK + Gradle en un módulo `:core` sin SDK. Esto se
+midió primero con una sonda `kotlin("jvm")` (KGP 2.4.21, que después se cambió a 2.2.10 al entrar
+AGP; ver §5) sobre Gradle 9.9.1 y `taskset -c 0-1`:
 
 | Corpus | Medido (2026-11-17) |
 |---|---|
@@ -89,9 +90,9 @@ Temperatura durante toda la sonda: 33–36 °C (no se movió). Eso da un loop de
 - **Runner `ubuntu-latest` (x86_64, 4 vCPU, 16 GB)**: tiene `aapt2`, JDK 21 y RAM de sobra.
   Un build de debug con caché caliente: ~2–3 min. En frío (primera vez, ~1 GB de descargas):
   6–8 min.
-- **Costo para el dueño**: repositorio **público** → minutos ilimitados y gratis. Si va privado,
-  el plan gratuito da 2 000 min/mes: alcanza para ~150–300 builds, suficiente, pero es un techo
-  que hay que mirar. **Decisión pendiente del dueño** (ADR 0002).
+- **Costo para el dueño**: el repo es **público** desde el 2026-11-17 → minutos de Actions
+  ilimitados y gratis (ver ADR 0002). Si alguna vez vuelve a privado, el plan gratuito da
+  2 000 min/mes: alcanza para ~150–300 builds, pero es un techo que hay que mirar.
 - **Cómo llega el APK al teléfono**: `actions/upload-artifact` en cada push a `master`
   (retención 30 días) + `gh release` en cada tag `v*`. Instalación por link directo desde el
   navegador del Moto (permiso "instalar apps desconocidas").
@@ -105,23 +106,42 @@ push / PR  →  ./gradlew :core:test  →  lint  →  assembleDebug  →  artifa
 tag v*     →  idem + assembleRelease (firmado si hay secrets)  →  GitHub Release con el APK
 ```
 
-`gradle/actions/setup-gradle` cachea `~/.gradle` y el SDK (`android-actions/setup-android`).
+El step `setup-gradle` cachea `~/.gradle`; el SDK de Android lo instala `setup-android`.
 
 ### 4.2 Regla de trabajo que se deriva
 
-- **Local (Moto)**: `scripts/check-core.sh` → `:core:test` con `settings-core.gradle.kts`
-  (incluye solo `:core`, no toca `:app`, no necesita SDK). Es el gate L0/L1 de la política.
+- **Local (Moto)**: `scripts/check-core.sh` → `gradle -PcoreOnly :core:test` con
+  `settings-core.gradle.kts` (incluye sólo `:core`, no toca `:app`, no necesita SDK). La property
+  `-PcoreOnly` es lo que hace que `settings.gradle.kts` aplique el settings reducido: Gradle 9
+  eliminó `-c`/`--settings-file`, así que no hay bandera de settings.
 - **CI**: `:app` compile + lint + APK. Evidencia = link del run verde + APK descargable.
 - **Teléfono del dueño**: único lugar donde se prueba de verdad la alerta de pantalla completa,
   la vibración, el sonido y el cronómetro con la app cerrada. Eso es `evidence_kind: manual`.
 
-## 5. Dependencias (pinneadas, verificadas hoy contra los repos)
+## 5. Dependencias (pinneadas, verificadas contra los repos)
+
+> **Superado en parte por [`build.md`](build.md), que es la matriz que realmente compila.**
+> Diferencias que introdujo GIM-1 (2026-11-17) y que el código ya implementa:
+>
+> - **Kotlin 2.4.21 → 2.2.10.** AGP 9.5.1 trae Kotlin *built-in*: forzar KGP 2.4.21 muere al
+>   aplicar `com.android.application` con
+>   `NoClassDefFoundError: com.android.build.gradle.api.BaseVariant`, porque AGP 9 eliminó la API
+>   vieja de variantes. La versión usable es la KGP que trae el plugin (2.2.10), y el plugin de
+>   Compose queda en la misma versión.
+> - **compileSdk 36 → 37.0.** `androidx.core:core-ktx:1.19.1` y el Compose BOM 2026.09.00
+>   (compose 1.12.1) declaran `minCompileSdk=37` en su AAR metadata y `:app:checkDebugAarMetadata`
+>   falla con 13 issues. La API 37 se publica como `platforms;android-37.0`, así que el build
+>   declara `compileSdk = 37` + `compileSdkMinor = 0`.
+> - `targetSdk 36` y `minSdk 26` no cambian.
+>
+> El resto de esta tabla (Gradle 9.9.1, AGP 9.5.1, Compose BOM, Room, AndroidX, kotlinx,
+> Robolectric, JUnit) es exactamente lo que está declarado en `gradle/libs.versions.toml`.
 
 | Artefacto | Versión | Por qué |
 |---|---|---|
 | Gradle | 9.9.1 | última estable (services.gradle.org, 2026-11-10) |
 | Android Gradle Plugin | 9.5.1 | última estable; fallback documentado 8.13.2 + Gradle 8.14.x |
-| Kotlin | 2.4.21 | estable; el compilador de Compose viene incluido desde Kotlin 2.0 |
+| Kotlin | **2.2.10** (built-in de AGP 9.5.1) | la que compila; 2.4.21 murió en `BaseVariant` (ver nota arriba) |
 | KSP | 2.3.14 | procesador de Room (KSP2, versionado propio) |
 | Compose BOM | 2026.09.00 | alinea todo Compose Material 3 |
 | Room | 2.8.5 | SQLite tipado + migraciones |

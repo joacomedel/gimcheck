@@ -12,3 +12,8 @@
 - **Consecuencias**: el 70 % del producto se verifica en el Moto en segundos. `:core` no puede
   importar nada de `android.*` ni de Compose; los ViewModels de `:app` solo orquestan. Regla de
   review: si un cálculo aparece en un composable o en un ViewModel, se mueve a `:core`.
+
+> Nota de implementación (GIM-1/GIM-2, 2026-11-17): medido en este equipo con `:core` real
+> (1 test, KGP 2.2.10) — régimen sin cambios con daemon vivo: 18–21 s, ~440 MB de RSS pico, ~50 °C;
+> frío (daemon apagado + `rm -rf core/build`): 77–105 s. El script corta a 180 s, sin RAM
+> (< 800 MB libres) o con temperatura (≥ 55 °C al arrancar, 58 °C sostenidos).
