@@ -7,4 +7,7 @@
       values-night/colors.xml.
     -->
     <color name="gim_bg">#F4F4F1</color>
+    <!-- `accent` del contrato, para lo que se pinta fuera de Compose: el icono
+         adaptativo (drawable/ic_launcher_foreground.xml). -->
+    <color name="gim_accent">#2770C7</color>
 </resources>

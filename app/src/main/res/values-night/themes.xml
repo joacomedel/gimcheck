@@ -3,6 +3,7 @@
     <!-- Mismo tema, fondo oscuro: sin esto el arranque en oscuro destella blanco. -->
     <style name="Theme.GimCheck" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/gim_bg</item>
+        <item name="android:colorBackground">@color/gim_bg</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>

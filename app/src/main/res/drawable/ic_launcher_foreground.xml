@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Capa `foreground` del icono adaptativo: una mancuerna plana en el acento del
+  contrato (docs/diseno.md §3.1). Nada de sombras ni degradés, igual que la UI.
+
+  Lienzo de 108x108: el launcher recorta con su máscara y sólo garantiza el
+  círculo seguro de 66 dp, así que todo el dibujo cae dentro de un rombo de
+  ~60x36 centrado en (54,54). A 48 dp la barra mide ~3,5 dp y los discos
+  ~4,4 dp: se lee sin detalles finos.
+
+  El color viene de `@color/gim_accent` (values y values-night), espejo del
+  token `accent`: en oscuro el icono usa el acento claro sin duplicar el vector.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="@color/gim_accent"
+        android:pathData="M40,50h28v8h-28z M30,36h10v36h-10z M68,36h10v36h-10z M24,44h6v20h-6z M78,44h6v20h-6z" />
+</vector>

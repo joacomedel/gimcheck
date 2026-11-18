@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Icono adaptativo (API 26+, y el icono real de la app: minSdk = 26).
+  - `background`: `bg` del contrato, el mismo color de la ventana del arranque
+    (values/colors.xml, values-night/colors.xml). No hay destello de otro color
+    entre el splash del sistema y el primer frame de Compose.
+  - `foreground`: vector, la mancuerna en `accent`.
+  - `monochrome`: themed icon de Android 13+ (usa sólo el alfa).
+  Cero PNG: el icono entero son ~2 KB de XML, sin carpetas de densidad.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/gim_bg" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>

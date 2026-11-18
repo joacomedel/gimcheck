@@ -2,4 +2,6 @@
 <resources>
     <!-- `bg` del modo oscuro. Ver values/colors.xml. -->
     <color name="gim_bg">#121211</color>
+    <!-- `accent` del modo oscuro: el icono sigue al tema sin duplicar el vector. -->
+    <color name="gim_accent">#3987E5</color>
 </resources>

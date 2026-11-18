@@ -7,6 +7,10 @@
     -->
     <style name="Theme.GimCheck" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/gim_bg</item>
+        <!-- `colorBackground` es el fondo que usa la plataforma detrás de
+             diálogos/ventanas del sistema: sin esto el arranque y los diálogos
+             pueden destellar blanco antes del primer frame de Compose. -->
+        <item name="android:colorBackground">@color/gim_bg</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
