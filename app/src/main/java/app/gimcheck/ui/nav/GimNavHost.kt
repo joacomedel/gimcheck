@@ -53,6 +53,7 @@ fun GimNavHost(
         composable(GimDestination.HOY.route) {
             HoyScreen(
                 onStartSession = { navController.navigate(GimDestination.ENTRENAR.route) },
+                onOpenRutinas = { navController.navigateToBottomBar(GimDestination.RUTINAS) },
             )
         }
         composable(GimDestination.ENTRENAR.route) {

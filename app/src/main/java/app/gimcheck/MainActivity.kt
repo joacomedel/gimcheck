@@ -52,6 +52,7 @@ class MainActivity : ComponentActivity() {
                 GimCheckRoot(
                     lifecycle = activityLifecycle,
                     sessionResumer = container.sessionResumer,
+                    container = container,
                 )
             }
         }

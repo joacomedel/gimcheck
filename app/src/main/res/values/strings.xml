@@ -89,4 +89,24 @@
     <string name="ph_tema_sistema">Sistema</string>
     <string name="ph_tema_claro">Claro</string>
     <string name="ph_tema_oscuro">Oscuro</string>
+
+    <!--
+      Hoy (§6 fila 1). Copy de la pantalla real (GIM-20): sentence case y voseo.
+    -->
+    <string name="hoy_dia">Día</string>
+    <string name="hoy_ultimos">Últimos</string>
+    <string name="hoy_peso_anotado">Anotado hoy: %1$s kg</string>
+    <string name="hoy_peso_sin_anotar">Sin anotar</string>
+    <string name="hoy_sesion_abierta">Sesión abierta</string>
+    <string name="hoy_sesion_otro_dia">Hay una sesión activa del %1$s.</string>
+    <string name="hoy_descartar_pregunta">¿Descartar la sesión abierta?</string>
+    <string name="accion_anotar">Anotar</string>
+    <string name="accion_corregir">Corregir</string>
+    <string name="accion_descartar">Descartar</string>
+    <string name="accion_continuar_sesion_min">Continuar sesión (%1$d min)</string>
+
+    <plurals name="hoy_series">
+        <item quantity="one">%1$d serie</item>
+        <item quantity="other">%1$d series</item>
+    </plurals>
 </resources>

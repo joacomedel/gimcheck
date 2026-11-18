@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -14,6 +15,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import app.gimcheck.AppContainer
 import app.gimcheck.data.repository.SessionResumer
 import app.gimcheck.ui.nav.GimDestination
 import app.gimcheck.ui.nav.GimNavHost
@@ -50,6 +52,7 @@ fun GimCheckRoot(
     navController: NavHostController = rememberNavController(),
     lifecycle: Lifecycle? = null,
     sessionResumer: SessionResumer? = null,
+    container: AppContainer? = null,
 ) {
     val colors = GimTheme.colors
     val entry by navController.currentBackStackEntryAsState()
@@ -59,24 +62,26 @@ fun GimCheckRoot(
         ResumeSessionOnStart(lifecycle = lifecycle, resumer = sessionResumer)
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = colors.bg,
-        contentColor = colors.ink,
-        contentWindowInsets = WindowInsets.safeDrawing,
-        bottomBar = {
-            if (current != null && current.inBottomBar) {
-                GimBottomBar(
-                    current = current,
-                    onSelect = { navController.navigateToBottomBar(it) },
-                )
-            }
-        },
-    ) { innerPadding ->
-        GimNavHost(
-            navController = navController,
-            modifier = Modifier.padding(innerPadding),
-        )
+    CompositionLocalProvider(LocalAppContainer provides container) {
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            containerColor = colors.bg,
+            contentColor = colors.ink,
+            contentWindowInsets = WindowInsets.safeDrawing,
+            bottomBar = {
+                if (current != null && current.inBottomBar) {
+                    GimBottomBar(
+                        current = current,
+                        onSelect = { navController.navigateToBottomBar(it) },
+                    )
+                }
+            },
+        ) { innerPadding ->
+            GimNavHost(
+                navController = navController,
+                modifier = Modifier.padding(innerPadding),
+            )
+        }
     }
 }
 
