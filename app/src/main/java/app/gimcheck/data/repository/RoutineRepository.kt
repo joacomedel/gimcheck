@@ -2,6 +2,7 @@ package app.gimcheck.data.repository
 
 import app.gimcheck.core.DayItem
 import app.gimcheck.core.Routine
+import app.gimcheck.core.RoutineDay
 import app.gimcheck.data.db.AppDatabase
 import app.gimcheck.data.db.RoutineDayEntity
 import kotlinx.coroutines.CoroutineDispatcher
