@@ -52,6 +52,7 @@ jobs:
       # que valida MigrationTestHelper. Temporalmente se sube como artefacto
       # para bajar el JSON generado en CI.
       - name: Schema de Room (efimero, se baja como artefacto)
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: room-schemas
