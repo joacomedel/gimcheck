@@ -1,6 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+      Cronómetro de descanso (GIM-22, ADR 0004).
+
+      - FOREGROUND_SERVICE + FOREGROUND_SERVICE_SPECIAL_USE: el descanso corre en un
+        servicio en primer plano mientras la app está cerrada. El tipo es `specialUse`
+        porque un cronómetro de entrenamiento no entra en ninguno de los tipos con
+        requisitos (mediaPlayback, location, …); se declara el subtipo que Play pide.
+      - POST_NOTIFICATIONS: se pide en contexto al empezar la primera sesión. Si el
+        usuario lo niega la app sigue funcionando; sólo no se ve la notificación.
+      - SCHEDULE_EXACT_ALARM (y NO USE_EXACT_ALARM): la política de Google reserva
+        USE_EXACT_ALARM para reloj/alarma/calendario. Acá se consulta
+        `canScheduleExactAlarms()` y, si no está concedido, el servicio en primer plano
+        mantiene el cronómetro igual.
+      - USE_FULL_SCREEN_INTENT no se declara en este ticket: la pantalla completa de
+        "Descanso terminado" es GIM-23.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
     <application
         android:name=".GimCheckApp"
         android:allowBackup="true"
@@ -17,6 +38,25 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          El cronómetro vive acá, no en la pantalla: se arranca con el deadline absoluto
+          (`rest_ends_at`) y se para cuando la máquina cancela el descanso. `specialUse`
+          con el subtipo que Play exige para revisar el uso del permiso.
+        -->
+        <service
+            android:name=".rest.RestTimerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="rest timer / workout session" />
+        </service>
+
+        <!-- Respaldo: si el proceso muere, la alarma exacta avisa igual (ADR 0004). -->
+        <receiver
+            android:name=".rest.RestAlarmReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

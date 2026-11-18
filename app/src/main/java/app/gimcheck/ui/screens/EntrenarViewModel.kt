@@ -34,19 +34,22 @@ import kotlin.math.roundToInt
 /**
  * Gancho del **cronómetro de descanso** (`docs/especificacion.md` §4, GIM-22).
  *
- * La pantalla de este ticket muestra la cuenta regresiva desde `rest_ends_at` y deja el
- * aviso inline, pero el servicio en primer plano y la alarma exacta de respaldo son
- * GIM-22. El [EntrenarViewModel] ya sabe **cuándo** hay que arrancar, cortar o dar por
- * terminado un descanso —son los efectos de la máquina de `:core`— y los publica acá.
+ * La pantalla muestra la cuenta regresiva desde `rest_ends_at`, pero el servicio en
+ * primer plano y la alarma exacta de respaldo viven fuera de la pantalla (paquete
+ * `app.gimcheck.rest`, ADR 0004). El [EntrenarViewModel] sabe **cuándo** hay que
+ * arrancar, cortar o dar por terminado un descanso —son los efectos de la máquina de
+ * `:core`— y los publica acá; nunca decide el tiempo.
  *
- * Con [Noop] (el default y lo que usa este ticket) nadie escucha: el cronómetro vive
- * dentro de la pantalla y muere con ella, que es exactamente lo que GIM-22 viene a
- * arreglar. No hay lógica de alarma en este archivo a propósito.
+ * Con [Noop] (el default) nadie escucha: el cronómetro vive dentro de la pantalla y
+ * muere con ella. La pantalla real inyecta `AndroidRestGateway`.
  */
 interface RestGateway {
 
-    /** Hay que (re)programar el cronómetro con [seconds]. */
-    fun onStartRest(seconds: Int)
+    /**
+     * Hay que (re)programar el cronómetro hasta [endsAt] —el `rest_ends_at` absoluto de
+     * `:core`— con un total de [seconds] (para el progreso de la notificación).
+     */
+    fun onStartRest(seconds: Int, endsAt: Instant)
 
     /** Hay que detener el cronómetro y la alarma de respaldo. */
     fun onCancelRest()
@@ -56,7 +59,7 @@ interface RestGateway {
 
     /** Nadie escucha: el cronómetro es sólo la cuenta regresiva de la pantalla. */
     object Noop : RestGateway {
-        override fun onStartRest(seconds: Int) = Unit
+        override fun onStartRest(seconds: Int, endsAt: Instant) = Unit
         override fun onCancelRest() = Unit
         override fun onRestFinished() = Unit
     }
@@ -180,6 +183,18 @@ class EntrenarViewModel internal constructor(
         scope = scope,
     )
 
+    /** La pantalla real pasa el gateway que arranca el servicio y la alarma (GIM-22). */
+    constructor(
+        container: AppContainer,
+        scope: CoroutineScope,
+        restGateway: RestGateway,
+    ) : this(
+        sessions = container.sessions,
+        settings = container.settings,
+        scope = scope,
+        restGateway = restGateway,
+    )
+
     private val _state = MutableStateFlow(EntrenarUiState())
 
     /** Lo que compone la pantalla. */
@@ -211,6 +226,13 @@ class EntrenarViewModel internal constructor(
 
     private var restDone: Boolean = false
     private var jumpTo: String? = null
+
+    /**
+     * Deadline que el gateway tiene programado ahora mismo (`null` = no hay nada
+     * corriendo). Sirve para no rearrancar el servicio en cada emisión de la base: la
+     * pantalla observa `observeGuided`, que emite cada vez que cambia cualquier serie.
+     */
+    private var gatewayDeadline: Instant? = null
 
     /** Empieza a observar repositorios. Idempotente: la pantalla la llama una vez. */
     fun start() {
@@ -413,6 +435,10 @@ class EntrenarViewModel internal constructor(
             return
         }
         session = guided
+        // El cronómetro de afuera sigue al `rest_ends_at` de la base, no a la pantalla:
+        // un descanso que venía corriendo con la app cerrada se retoma en el mismo
+        // deadline (y si ya venció, `Restore` lo dio por terminado y se cancela).
+        updateRestGateway(guided)
         if (guided == null) {
             draftItemId = null
             clearEditing()
@@ -454,9 +480,15 @@ class EntrenarViewModel internal constructor(
         session = transition.state
         transition.effects.forEach { effect ->
             when (effect) {
-                is SessionEffect.StartRest -> restGateway.onStartRest(effect.seconds)
-                SessionEffect.CancelRest -> restGateway.onCancelRest()
+                // El cronómetro de afuera se sincroniza al final, con el estado nuevo
+                // (`updateRestGateway`): así el servicio y la alarma usan el mismo
+                // `restEndsAt` que va a persistir la máquina.
+                is SessionEffect.StartRest -> Unit
+                SessionEffect.CancelRest -> Unit
                 SessionEffect.RestFinished -> {
+                    // El gateway para lo suyo en `onRestFinished`; se limpia acá para
+                    // que `updateRestGateway` no lo pare dos veces.
+                    gatewayDeadline = null
                     restGateway.onRestFinished()
                     restDone = true
                 }
@@ -467,7 +499,34 @@ class EntrenarViewModel internal constructor(
                 SessionEffect.ShowNextExercise -> Unit
             }
         }
+        updateRestGateway(transition.state)
         if (transition.state.status == SessionStatus.FINISHED) finishedState = transition.state
+    }
+
+    /**
+     * Deja el servicio en primer plano y la alarma exacta apuntando a [guided]`.restEndsAt`
+     * (o cancela los dos si no hay descanso). Idempotente por deadline: la base se emite
+     * varias veces por serie anotada y no hace falta re-arrancar el servicio cada vez.
+     *
+     * Si el deadline ya venció con la app cerrada no se arranca un cronómetro en el
+     * pasado: `Restore`/`Tick` ya cerraron el descanso y lo que corresponde es cancelar.
+     */
+    private fun updateRestGateway(guided: GuidedSession?) {
+        val endsAt = guided?.restEndsAt
+        if (endsAt == null || !endsAt.isAfter(nowInstant())) {
+            if (gatewayDeadline != null) {
+                gatewayDeadline = null
+                restGateway.onCancelRest()
+            }
+            return
+        }
+        if (endsAt == gatewayDeadline) return
+        gatewayDeadline = endsAt
+        val remaining = ((Duration.between(nowInstant(), endsAt).toMillis() + 999) / 1000)
+            .toInt()
+            .coerceAtLeast(1)
+        val total = guided.restSeconds ?: remaining
+        restGateway.onStartRest(maxOf(total, remaining), endsAt)
     }
 
     private fun publish() {

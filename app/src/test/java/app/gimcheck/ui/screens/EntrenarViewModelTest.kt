@@ -88,7 +88,7 @@ class EntrenarViewModelTest {
      * Plan de prueba: bloque de superserie `[Press banca 90 s, Remo 120 s]` con [rounds]
      * rondas, sesión ya arrancada y ViewModel observando.
      */
-    private suspend fun startSession(rounds: Int) {
+    private suspend fun startSession(rounds: Int, gateway: RestGateway = RestGateway.Noop) {
         exercises.saveMuscle(Muscle(id = "m1", name = "Pecho"))
         exercises.saveMuscle(Muscle(id = "m2", name = "Espalda"))
         val press = Exercise(
@@ -134,6 +134,7 @@ class EntrenarViewModelTest {
             scope = scope,
             now = { Instants.fromEpochMillis(clock.toEpochMilli(), zone) },
             nowInstant = { clock },
+            restGateway = gateway,
         )
         viewModel.start()
     }
@@ -148,6 +149,48 @@ class EntrenarViewModelTest {
         awaitState { it.supersetPosition == 2 }
         viewModel.logSetNow()
         awaitState { it.rest != null }
+    }
+
+    /**
+     * GIM-22: la pantalla no cuenta por su cuenta. Cuando la máquina abre el descanso, el
+     * gateway recibe el **deadline absoluto** (`rest_ends_at`) y el total de la ronda; al
+     * saltarlo recibe la cancelación. Que el servicio y la alarma respeten ese deadline
+     * lo verifica `RestTimerGatewayTest`.
+     */
+    @Test
+    fun `el cronometro de afuera recibe el deadline del descanso y su cancelacion`() = runBlocking {
+        val gateway = RecordingRestGateway()
+        startSession(rounds = 3, gateway = gateway)
+
+        playUntilRest()
+
+        val started = gateway.started.single()
+        assertEquals("el total es el máximo de los que participaron", 120, started.second)
+        assertEquals("el deadline es rest_ends_at", clock.plusSeconds(120), started.first)
+        assertEquals(0, gateway.cancels)
+
+        viewModel.skipRestNow()
+        awaitState { it.rest == null }
+        assertEquals(1, gateway.cancels)
+    }
+
+    /** Gateway de prueba: guarda el deadline y el total de cada arranque. */
+    private class RecordingRestGateway : RestGateway {
+        val started = mutableListOf<Pair<Instant, Int>>()
+        var cancels: Int = 0
+        var finished: Int = 0
+
+        override fun onStartRest(seconds: Int, endsAt: Instant) {
+            started += endsAt to seconds
+        }
+
+        override fun onCancelRest() {
+            cancels++
+        }
+
+        override fun onRestFinished() {
+            finished++
+        }
     }
 
     @Test

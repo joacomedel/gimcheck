@@ -38,6 +38,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import app.gimcheck.R
+import app.gimcheck.rest.AndroidRestGateway
 import app.gimcheck.ui.LocalAppContainer
 import app.gimcheck.ui.components.ChipFilter
 import app.gimcheck.ui.components.ConfirmInline
@@ -94,13 +95,22 @@ fun EntrenarScreen(
     }
 
     val scope = rememberCoroutineScope()
-    val viewModel = remember(container) { EntrenarViewModel(container, scope) }
+    val context = LocalContext.current
+    // El cronómetro de afuera (servicio en primer plano + alarma exacta, GIM-22): la
+    // pantalla le pasa el deadline, no un contador. Sin esto el descanso moría con la
+    // pantalla.
+    val restGateway = remember(context) { AndroidRestGateway(context.applicationContext) }
+    val viewModel = remember(container, restGateway) {
+        EntrenarViewModel(container, scope, restGateway)
+    }
     LaunchedEffect(viewModel) { viewModel.start() }
     DisposableEffect(viewModel) {
         onDispose { viewModel.stop() }
     }
 
     val state by viewModel.state.collectAsState()
+
+    RestPermissionPrompt(active = state.phase == EntrenarPhase.ACTIVE)
 
     KeepScreenOn(enabled = state.keepScreenOn && state.phase == EntrenarPhase.ACTIVE)
 

@@ -133,4 +133,27 @@
     <string name="accion_volver_hoy">Volver a Hoy</string>
     <string name="entrenar_fin_titulo">Sesión terminada</string>
     <string name="entrenar_fin_detalle">El resumen de la sesión llega en la próxima versión.</string>
+
+    <!--
+      Cronómetro de descanso fuera de la pantalla (GIM-22). El texto de la notificación
+      se reescribe cada 5 s; el formato del tiempo es el mismo `m:ss` de §4
+      (formatRestClock), no un contador propio.
+    -->
+    <string name="rest_notif_canal">Cronómetro de descanso</string>
+    <string name="rest_notif_canal_desc">Tiempo restante mientras la app está cerrada.</string>
+    <string name="rest_notif_canal_fin">Fin de descanso</string>
+    <string name="rest_notif_canal_fin_desc">Aviso de que el descanso llegó a cero.</string>
+    <string name="rest_notif_titulo">Descanso</string>
+    <string name="rest_notif_texto">Quedan %1$s</string>
+    <string name="rest_notif_fin_texto">Volvé a la app para anotar la próxima serie.</string>
+
+    <!--
+      Permisos del cronómetro: se piden en contexto, al empezar la primera sesión, con
+      la explicación de qué pasa si se niegan (nada se rompe; se pierde el aviso).
+    -->
+    <string name="rest_permiso_titulo">Avisar el fin del descanso</string>
+    <string name="rest_permiso_texto">Para mostrarte cuánto falta y avisarte cuando termina el descanso con la app cerrada, GimCheck necesita permiso de notificaciones. Si lo negás, el cronómetro sigue funcionando pero no vas a ver el aviso.</string>
+    <string name="rest_permiso_alarmas_texto">Para que el aviso llegue aunque el teléfono mate el proceso, GimCheck usa alarmas exactas. Sin ese permiso el cronómetro igual funciona mientras el servicio siga vivo.</string>
+    <string name="rest_permiso_activar">Permitir</string>
+    <string name="rest_permiso_ahora_no">Ahora no</string>
 </resources>
