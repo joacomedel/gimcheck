@@ -199,6 +199,77 @@ Reglas finas:
   muestra el tiempo restante.
 - Corregir una serie ya anotada no cambia el cursor (solo los datos).
 
+### 4.1 Máquina de estados implementada en `:core`
+
+`core/src/main/kotlin/app/gimcheck/core/SessionMachine.kt`:
+`reduce(state, event) -> SessionTransition(state, effects)`. Función **pura**: no lee
+el reloj (el `now` entra en el evento), no toca disco ni notificaciones; lo que hay
+que hacer sale como lista de efectos. Tests: `SessionMachineTest.kt`.
+
+Estado (`GuidedSession`): `day` (el plan; los bloques se derivan con `groups`, la misma
+regla que `dayStats`), `sessionId`, `startedAt`, `status`, `blockIndex`, `roundIndex`,
+`itemIndex`, `restEndsAt`, `restSeconds` y `sets` (`LoggedSet` = ítem + ronda +
+`SessionSet`). `status`: `NOT_STARTED → RUNNING ⇄ RESTING → FINISHED | ABANDONED`.
+
+Tipos de tiempo: `restEndsAt` es un instante **absoluto** (`Instant`; Room lo guarda
+como epoch millis) para que `Tick` y `Restore` comparen sin zona ni DST.
+`SessionSet.completedAt` sigue siendo hora local (`LocalDateTime`), que es como
+trabaja el resto del dominio; el llamador la pasa en `LogSet.at`.
+
+Eventos: `StartSession(sessionId, now)`, `LogSet(weightKg, reps, isWarmup, at, now)`,
+`SkipRest`, `ExtendRest(deltaSecs)`, `Tick(now)`, `Restore(now)`, `FinishSession`,
+`AbandonSession`.
+
+Efectos, en el orden en que se emiten: `PersistState`; `CancelRest` / `StartRest(seconds)`;
+`RestFinished` / `SessionFinished` / `ShowRestDone`; `ShowNextInSuperset` / `ShowNextExercise`.
+
+| Estado | Evento | Estado nuevo | Efectos |
+|---|---|---|---|
+| `NOT_STARTED` | `StartSession`, día con ítems | `RUNNING` en (bloque 0, ronda 0, primer ítem) | PersistState |
+| `NOT_STARTED` | `StartSession`, día sin ítems | `FINISHED` | PersistState, SessionFinished |
+| `NOT_STARTED` | cualquier otro | sin cambio | — |
+| `RUNNING` | `LogSet` y quedan ítems del bloque en la ronda | `RUNNING`, `itemIndex++` | PersistState, ShowNextInSuperset |
+| `RUNNING` | `LogSet` que cierra la ronda y hay ronda siguiente | `RESTING`, `roundIndex++`, `itemIndex = 0`, descanso de la ronda cerrada | PersistState, ShowNextExercise, StartRest |
+| `RUNNING` | `LogSet` que cierra el bloque y hay bloque siguiente | `RESTING`, `blockIndex++`, ronda 0, ítem 0 | PersistState, ShowNextExercise, StartRest |
+| `RUNNING` | `LogSet` que cierra el último bloque | `FINISHED`, sin descanso | PersistState, SessionFinished |
+| `RUNNING` | `LogSet` de calentamiento | `RUNNING` (cursor igual) o `RESTING` si el descanso > 0 | PersistState [, StartRest(mitad)] |
+| `RUNNING` | `Tick`, `SkipRest`, `ExtendRest`, `Restore` | sin cambio | — |
+| `RESTING` | `LogSet` (anotar sin esperar) | igual que en `RUNNING`, cancelando antes el descanso | CancelRest, PersistState, … |
+| `RESTING` | `Tick(now)` con `now < restEndsAt` | sin cambio | — |
+| `RESTING` | `Tick(now)` con `now ≥ restEndsAt` | `RUNNING`, limpia el descanso | PersistState, RestFinished |
+| `RESTING` | `SkipRest` | `RUNNING`, limpia el descanso | PersistState, CancelRest |
+| `RESTING` | `ExtendRest(±s)` | `RESTING`, `restSeconds+s`, `restEndsAt+s` | PersistState, StartRest(nuevo) |
+| `RESTING` | `ExtendRest` que deja ≤ 0 s | `RUNNING`, limpia el descanso | PersistState, CancelRest |
+| `RESTING` | `ExtendRest(0)` | sin cambio | — |
+| `RESTING` | `Restore(now)` con `now < restEndsAt` | sin cambio (se reanuda) | StartRest(lo que falta) |
+| `RESTING` | `Restore(now)` con `now ≥ restEndsAt` | `RUNNING`, limpia el descanso, cursor intacto | PersistState, RestFinished, ShowRestDone |
+| `RUNNING` o `RESTING` | `FinishSession` | `FINISHED` | PersistState [, CancelRest], SessionFinished |
+| `RUNNING` o `RESTING` | `AbandonSession` | `ABANDONED` | PersistState [, CancelRest] |
+| `FINISHED` o `ABANDONED` | cualquier evento | sin cambio | — |
+
+Reglas de implementación que la tabla no muestra:
+
+- **Descanso de la ronda** = máximo de `restOverrideSeconds ?: exercise.rest_seconds`
+  entre los ítems que **participaron** en la ronda cerrada (`sets > roundIndex`). Al
+  cerrar el bloque se usa el de su última ronda: en un bloque 3+2 descansa sólo el ítem
+  de 3, igual que en `dayStats`. Un ítem que ya terminó sus series no aporta descanso.
+- **Dentro del bloque no hay descanso**: sólo cambia el cursor (`ShowNextInSuperset`).
+  El cursor salta los ítems que no participan en la ronda (`firstParticipant`), así una
+  ronda extra con un solo ítem se cierra en cuanto ese ítem anota.
+- **Calentamiento**: `warmupRestSeconds(rest)` = `rest / 2` redondeado a 15 s con
+  `Math.round` (`120 → 60`, `90 → 45`, `100 → 45`, `20 → 15`); con 0 no abre descanso.
+  No mueve el cursor ni cuenta para volumen/PR (eso lo resuelve `:core` con
+  `SessionSet.isWarmup`).
+- **Anotar durante el descanso es "empezar ya"**: cancela el cronómetro y sigue desde
+  el cursor que ya apuntaba al próximo ítem.
+- **Eventos fuera de estado son no-op** (mismo estado, sin efectos): el servicio de
+  cronómetro puede mandar `Tick` cada segundo sin mirar el estado.
+- **Ids deterministas**: `"<sessionId>/<itemId>/<n>"` con `n` = series previas de ese
+  ítem. Un replay del mismo evento no inventa ids.
+- **`Restore` no cambia el cursor**: sólo ajusta el descanso. Si venció mientras el
+  proceso estaba muerto, entra a `RUNNING` emitiendo `ShowRestDone` para que la pantalla
+  muestre el aviso.
+
 ## 5. Alerta de fin de descanso (configurable)
 
 `alertMode ∈ { SCREEN, VIBRATE, SOUND, SCREEN_VIBRATE, SCREEN_SOUND, VIBRATE_SOUND,
