@@ -4,6 +4,7 @@ import app.gimcheck.data.db.AppDatabase
 import app.gimcheck.data.db.AppSettingEntity
 import app.gimcheck.data.settings.AppSettings
 import app.gimcheck.data.settings.AppSettingsCodec
+import app.gimcheck.data.settings.SettingKeys
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +36,15 @@ class SettingsRepository internal constructor(
     val settings: Flow<AppSettings> =
         dao.observeAll().map { rows -> AppSettingsCodec.decode(rows.associate { it.key to it.value }) }
 
+    /**
+     * Id del plan activo (GIM-16), o `null` si todavía no se eligió ninguno. Es una fila
+     * suelta de `app_setting` ([SettingKeys.ACTIVE_ROUTINE]) que **no** forma parte de
+     * [AppSettings]: cambiarla no reescribe los ajustes ni dispara un guardado completo.
+     */
+    val activeRoutineId: Flow<String?> = dao.observeAll().map { rows ->
+        rows.firstOrNull { it.key == SettingKeys.ACTIVE_ROUTINE }?.value?.takeIf { it.isNotBlank() }
+    }
+
     /** Lectura puntual del estado actual (no reactiva). */
     suspend fun current(): AppSettings = withContext(io) { read() }
 
@@ -56,7 +66,21 @@ class SettingsRepository internal constructor(
     }
 
     /** Vuelve a los defaults de §8. */
-    suspend fun reset(): AppSettings = set(AppSettings.DEFAULT)
+    suspend fun reset(): AppSettings = set(AppSettings.DEFAULT).also {
+        withContext(io) { dao.delete(SettingKeys.ACTIVE_ROUTINE) }
+    }
+
+    /**
+     * Marca el plan activo. `null` borra la fila: "sin plan activo" es la ausencia de
+     * valor, no la cadena vacía.
+     */
+    suspend fun setActiveRoutine(id: String?) = withContext(io) {
+        if (id == null) {
+            dao.delete(SettingKeys.ACTIVE_ROUTINE)
+        } else {
+            dao.put(AppSettingEntity(key = SettingKeys.ACTIVE_ROUTINE, value = id))
+        }
+    }
 
     private suspend fun read(): AppSettings =
         AppSettingsCodec.decode(dao.all().associate { it.key to it.value })

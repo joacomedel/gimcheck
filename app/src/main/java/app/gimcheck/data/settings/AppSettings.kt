@@ -113,6 +113,14 @@ object SettingKeys {
     const val BODYWEIGHT_VOLUME = "bodyweightVolume"
     const val THEME = "theme"
     const val KEEP_SCREEN_ON = "keepScreenOn"
+
+    /**
+     * Plan activo (GIM-16). No es un ajuste de §8: es el `curPlan` que la web guarda en
+     * `localStorage`, y va como fila propia de `app_setting` para no migrar el esquema
+     * de `routine` (que no tiene columna de "activo"). Fuera de [AppSettings]: no lo
+     * consume ningún cálculo, sólo la UI.
+     */
+    const val ACTIVE_ROUTINE = "activeRoutineId"
 }
 
 /**

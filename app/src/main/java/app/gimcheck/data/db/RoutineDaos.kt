@@ -34,6 +34,13 @@ internal interface RoutineDao {
     @Query("SELECT COALESCE(MAX(position), -1) FROM routine_day WHERE routine_id = :routineId")
     suspend fun maxDayPosition(routineId: String): Int
 
+    /** Posición para un plan nuevo: el final de la lista (GIM-16). */
+    @Query("SELECT COALESCE(MAX(position), -1) FROM routine")
+    suspend fun maxPosition(): Int
+
+    @Query("UPDATE routine SET name = :name WHERE id = :id")
+    suspend fun renameRoutine(id: String, name: String)
+
     @Query("UPDATE routine_day SET name = :name WHERE id = :id")
     suspend fun renameDay(id: String, name: String)
 

@@ -5,6 +5,7 @@ import app.gimcheck.core.Routine
 import app.gimcheck.core.RoutineDay
 import app.gimcheck.data.db.AppDatabase
 import app.gimcheck.data.db.RoutineDayEntity
+import app.gimcheck.data.db.RoutineEntity
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -99,9 +100,91 @@ class RoutineRepository internal constructor(
         }
     }
 
-    /** Borra el plan con sus días e ítems. Las sesiones históricas quedan intactas. */
-    suspend fun deleteRoutine(id: String) = withContext(io) {
+    /**
+     * Un plan con sus días e ítems, materializado. Es lo que necesita exportar el plan
+     * (GIM-16): `exportPlan` de `:core` trabaja sobre el modelo completo, no sobre las
+     * filas sueltas.
+     */
+    suspend fun routine(id: String): Routine? = withContext(io) {
+        val row = routineDao.getById(id) ?: return@withContext null
+        val secondariesByExercise = exerciseDao.allSecondaries().groupBy { it.exerciseId }
+        val exercisesById = exerciseDao.all().associate { exercise ->
+            exercise.id to exercise.toDomain(secondariesByExercise[exercise.id].orEmpty())
+        }
+        row.toDomain(
+            routineDao.daysOf(id).map { day ->
+                day.toDomain(
+                    dayDao.items(day.id).mapNotNull { item ->
+                        exercisesById[item.exerciseId]?.let { exercise -> item.toDomain(exercise) }
+                    },
+                )
+            },
+        )
+    }
+
+    /** Crea un plan vacío al final de la lista y devuelve su id. */
+    suspend fun createRoutine(name: String): String = withContext(io) {
+        val id = newId()
+        routineDao.upsertWithDays(
+            routine = RoutineEntity(id = id, name = name, position = routineDao.maxPosition() + 1),
+            days = emptyList(),
+        )
+        id
+    }
+
+    suspend fun renameRoutine(id: String, name: String) = withContext(io) {
+        routineDao.renameRoutine(id, name)
+    }
+
+    /**
+     * Duplica un plan con **copia profunda** de días e ítems: ids nuevos en los tres
+     * niveles, misma composición (ejercicios, series, drop set, superserie). El
+     * original no se toca.
+     *
+     * @return el id del plan nuevo, o `null` si el original ya no existe.
+     */
+    suspend fun duplicateRoutine(routineId: String, name: String): String? = withContext(io) {
+        val source = routineDao.getById(routineId) ?: return@withContext null
+        val newRoutineId = newId()
+        // Se copian primero las entidades: el árbol de dominio se resolvería con una
+        // lectura por día y lo único que cambia es el id.
+        val copiedDays = routineDao.daysOf(routineId).map { day ->
+            val newDayId = newId()
+            RoutineDayEntity(
+                id = newDayId,
+                routineId = newRoutineId,
+                name = day.name,
+                position = day.position,
+            ) to dayDao.items(day.id).map { item -> item.copy(id = newId(), dayId = newDayId) }
+        }
+        routineDao.upsertWithDays(
+            routine = RoutineEntity(
+                id = newRoutineId,
+                name = name,
+                notes = source.notes,
+                position = routineDao.maxPosition() + 1,
+                createdAt = source.createdAt,
+            ),
+            days = copiedDays.map { (day, _) -> day },
+        )
+        copiedDays.forEach { (day, items) ->
+            dayDao.replaceItems(day.id, items)
+        }
+        newRoutineId
+    }
+
+    /**
+     * Borra el plan con sus días e ítems. Las sesiones históricas quedan intactas.
+     *
+     * **Nunca el último**: la web no deja quedarse sin plan y la app tampoco (§1.1). La
+     * regla vive acá, no sólo en la pantalla, para que ningún llamador futuro la saltee.
+     *
+     * @return `false` si fue rechazado por ser el único plan, `true` si borró.
+     */
+    suspend fun deleteRoutine(id: String): Boolean = withContext(io) {
+        if (routineDao.count() <= 1) return@withContext false
         routineDao.delete(id)
+        true
     }
 
     /** Agrega un día vacío al final del plan y devuelve su id. */
@@ -116,6 +199,25 @@ class RoutineRepository internal constructor(
 
     suspend fun deleteDay(dayId: String) = withContext(io) {
         routineDao.deleteDay(dayId)
+    }
+
+    /**
+     * Duplica un día al final de su plan, con ítems nuevos (mismos ejercicios y
+     * marcas). El día copiado queda con `superset_next` del último ítem en false,
+     * que es la invariante que aplica `replaceItems`.
+     *
+     * @return el id del día nuevo, o `null` si el original ya no existe.
+     */
+    suspend fun duplicateDay(dayId: String): String? = withContext(io) {
+        val source = routineDao.getDay(dayId) ?: return@withContext null
+        val copied = routineDao.appendDay(
+            RoutineDayEntity(id = newId(), routineId = source.routineId, name = source.name),
+        )
+        dayDao.replaceItems(
+            copied.id,
+            dayDao.items(dayId).map { item -> item.copy(id = newId(), dayId = copied.id) },
+        )
+        copied.id
     }
 
     /** Agrega el ítem al final del día y devuelve el id guardado. */

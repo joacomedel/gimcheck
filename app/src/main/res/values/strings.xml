@@ -145,6 +145,39 @@
     <string name="ph_confirmar_abandono">¿Abandonar la sesión? Se guardan las series, pero no cuenta como entrenamiento.</string>
 
     <!--
+      Rutinas (§6 fila 4, GIM-16): planes, días y detalle del día. Sentence case y
+      voseo, como el resto. El detalle de un día es solo lectura: el editor es GIM-17.
+    -->
+    <string name="rutinas_planes">Planes</string>
+    <string name="rutinas_nuevo_plan">Nuevo plan</string>
+    <string name="rutinas_activo">Activo</string>
+    <string name="rutinas_hacer_activo">Hacer activo</string>
+    <string name="rutinas_duplicar">Duplicar</string>
+    <string name="rutinas_renombrar">Renombrar</string>
+    <string name="rutinas_eliminar">Eliminar</string>
+    <string name="rutinas_exportar">Exportar</string>
+    <string name="rutinas_plan_meta">%1$s · %2$s series · %3$s</string>
+    <string name="rutinas_plan_unico">Es el único plan: no se puede eliminar.</string>
+    <string name="rutinas_eliminar_plan_pregunta">¿Eliminar «%1$s» con sus días e ítems?</string>
+    <string name="rutinas_dias">Días</string>
+    <string name="rutinas_agregar_dia">Agregar día</string>
+    <string name="rutinas_duplicar_dia">Duplicar día</string>
+    <string name="rutinas_renombrar_dia">Renombrar día</string>
+    <string name="rutinas_eliminar_dia">Eliminar día</string>
+    <string name="rutinas_eliminar_dia_pregunta">¿Eliminar «%1$s» con sus ejercicios?</string>
+    <string name="rutinas_sin_dias">Este plan todavía no tiene días.</string>
+    <string name="rutinas_advertencias">Advertencias</string>
+    <string name="rutinas_compartir">Compartir plan</string>
+    <string name="rutinas_nombre">Nombre</string>
+    <string name="accion_guardar">Guardar</string>
+    <string name="rutinas_item_meta">%1$s · %2$s</string>
+
+    <plurals name="rutinas_dias_count">
+        <item quantity="one">%1$d día</item>
+        <item quantity="other">%1$d días</item>
+    </plurals>
+
+    <!--
       Cronómetro de descanso fuera de la pantalla (GIM-22). El texto de la notificación
       se reescribe cada 5 s; el formato del tiempo es el mismo `m:ss` de §4
       (formatRestClock), no un contador propio.
