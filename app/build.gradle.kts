@@ -6,6 +6,9 @@ plugins {
     // KSP es el único generador de código: Room 2.8.5 lo usa para los DAO y para
     // exportar el schema (ver docs/adr/0003-persistencia-room.md).
     alias(libs.plugins.ksp)
+    // El plugin de Room es el que copia el schema exportado por KSP a app/schemas/
+    // (Room 2.8 escribe primero en build/). Sin él no hay JSON versionado.
+    alias(libs.plugins.androidx.room)
 }
 
 android {
@@ -60,10 +63,10 @@ android {
     }
 }
 
-// exportSchema = true escribe app/schemas/<clase>/<version>.json. El schema se
-// commitea: es el contrato que valida MigrationTestHelper.
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
+// exportSchema = true + el plugin de Room escriben app/schemas/<clase>/<version>.json.
+// El schema se commitea: es el contrato que valida MigrationTestHelper.
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 dependencies {
