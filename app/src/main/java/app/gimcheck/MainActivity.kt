@@ -14,6 +14,10 @@ import androidx.compose.ui.unit.dp
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Primer arranque sin datos: el seed de assets/seed.json se carga en segundo
+        // plano (idempotente; ver SeedImporter). Se dispara desde acá y no desde
+        // Application para que los tests JVM no toquen disco al construir el grafo.
+        GimCheckApp.container(application).seedIfEmptyAsync()
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {

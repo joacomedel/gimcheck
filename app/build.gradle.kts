@@ -72,6 +72,11 @@ room {
 dependencies {
     implementation(project(":core"))
 
+    // `:core` declara kotlinx-datetime como `implementation`, pero expone
+    // LocalDateTime/LocalDate en su API pública (Session.startedAt, BodyMetric.date).
+    // Sin esta línea :app no puede referenciar esos tipos al mapear dominio ↔ Room.
+    implementation(libs.kotlinx.datetime)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
 

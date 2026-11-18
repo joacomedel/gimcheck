@@ -1,5 +1,6 @@
 package app.gimcheck.data.db
 
+import androidx.annotation.VisibleForTesting
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
@@ -15,17 +16,28 @@ import kotlinx.coroutines.flow.Flow
  * Las escrituras usan `@Upsert` y no `@Insert(onConflict = REPLACE)`: REPLACE
  * hace un DELETE + INSERT de la fila, y con `ON DELETE CASCADE` eso borraría en
  * silencio los hijos (un ejercicio re-guardado se llevaría sus `day_item`).
+ *
+ * **Visibilidad (GIM-10):** todos los DAO son `internal`. Kotlin no permite
+ * `internal` en un miembro de interfaz, así que la restricción se aplica al tipo:
+ * nada fuera del módulo puede escribir por el camino crudo. Dentro del módulo, los
+ * mutadores que saltean una invariante de §2 están marcados
+ * `@VisibleForTesting(otherwise = PACKAGE_PRIVATE)` y sólo los llama el propio DAO;
+ * el único camino de escritura de la app son los repositorios (`data/repository`).
+ * Eso lo verifica `DaoWritePathTest`.
  */
 
 /** Catálogo de músculos (§2 `muscle`). */
 @Dao
-interface MuscleDao {
+internal interface MuscleDao {
 
     @Query("SELECT * FROM muscle WHERE archived = 0 ORDER BY position, name")
     fun observeAll(): Flow<List<MuscleEntity>>
 
     @Query("SELECT * FROM muscle ORDER BY position, name")
     fun observeAllIncludingArchived(): Flow<List<MuscleEntity>>
+
+    @Query("SELECT * FROM muscle WHERE archived = 0 ORDER BY position, name")
+    suspend fun all(): List<MuscleEntity>
 
     @Query("SELECT * FROM muscle WHERE id = :id")
     suspend fun getById(id: String): MuscleEntity?
@@ -46,10 +58,13 @@ interface MuscleDao {
 
 /** Catálogo de ejercicios (§2 `exercise` + `exercise_secondary`). */
 @Dao
-interface ExerciseDao {
+internal interface ExerciseDao {
 
     @Query("SELECT * FROM exercise WHERE archived = 0 ORDER BY position, name")
     fun observeAll(): Flow<List<ExerciseEntity>>
+
+    @Query("SELECT * FROM exercise WHERE archived = 0 ORDER BY position, name")
+    suspend fun all(): List<ExerciseEntity>
 
     @Query("SELECT * FROM exercise WHERE id = :id")
     suspend fun getById(id: String): ExerciseEntity?
@@ -60,12 +75,19 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercise_secondary WHERE exercise_id = :exerciseId ORDER BY muscle_id")
     fun observeSecondariesOf(exerciseId: String): Flow<List<ExerciseSecondaryEntity>>
 
+    /** Todos los secundarios de golpe: el repositorio arma el catálogo de una vez. */
+    @Query("SELECT * FROM exercise_secondary ORDER BY exercise_id, muscle_id")
+    fun observeAllSecondaries(): Flow<List<ExerciseSecondaryEntity>>
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Upsert
     suspend fun upsertExercise(exercise: ExerciseEntity)
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Upsert
     suspend fun upsertSecondaries(secondaries: List<ExerciseSecondaryEntity>)
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Query("DELETE FROM exercise_secondary WHERE exercise_id = :exerciseId")
     suspend fun deleteSecondariesOf(exerciseId: String)
 
@@ -104,6 +126,7 @@ interface ExerciseDao {
     @Query("SELECT DISTINCT day_id FROM day_item WHERE exercise_id = :exerciseId")
     suspend fun dayIdsWithExercise(exerciseId: String): List<String>
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Query("DELETE FROM day_item WHERE exercise_id = :exerciseId")
     suspend fun deleteDayItemsOfExercise(exerciseId: String)
 
@@ -112,12 +135,14 @@ interface ExerciseDao {
      * un DAO de Room no puede llamar a otro dentro de su propia transacción.
      * Si cambia la definición de "último ítem", cambian las dos.
      */
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Query(
         "UPDATE day_item SET superset_next = 0 WHERE day_id = :dayId AND position = " +
             "(SELECT MAX(position) FROM day_item WHERE day_id = :dayId)",
     )
     suspend fun clearLastItemSupersetNext(dayId: String)
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Query("DELETE FROM exercise WHERE id = :exerciseId")
     suspend fun deleteExerciseRow(exerciseId: String)
 

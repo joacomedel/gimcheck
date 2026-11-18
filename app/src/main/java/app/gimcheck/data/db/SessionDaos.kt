@@ -1,5 +1,6 @@
 package app.gimcheck.data.db
 
+import androidx.annotation.VisibleForTesting
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
@@ -8,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 /** Sesiones (§2 `session`, `session_set`, `session_state`). */
 @Dao
-interface SessionDao {
+internal interface SessionDao {
 
     @Query("SELECT * FROM session WHERE status = 'ACTIVE' LIMIT 1")
     suspend fun active(): SessionEntity?
@@ -22,6 +23,7 @@ interface SessionDao {
     @Query("SELECT * FROM session ORDER BY started_at DESC")
     fun observeHistory(): Flow<List<SessionEntity>>
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Upsert
     suspend fun upsert(session: SessionEntity)
 
@@ -56,13 +58,17 @@ interface SessionDao {
 
 /** Series anotadas (§2 `session_set`; §3.1 y §3.2 las agregan). */
 @Dao
-interface SessionSetDao {
+internal interface SessionSetDao {
 
     @Query("SELECT * FROM session_set WHERE session_id = :sessionId ORDER BY completed_at, round_index, set_index")
     fun observeOfSession(sessionId: String): Flow<List<SessionSetEntity>>
 
     @Query("SELECT * FROM session_set WHERE session_id = :sessionId ORDER BY completed_at, round_index, set_index")
     suspend fun ofSession(sessionId: String): List<SessionSetEntity>
+
+    /** Todas las series de todas las sesiones: el histórico se arma con un solo Flow. */
+    @Query("SELECT * FROM session_set ORDER BY session_id, completed_at, round_index, set_index")
+    fun observeAll(): Flow<List<SessionSetEntity>>
 
     /** Series de trabajo de un ejercicio, en orden: insumo del PR (§3.1). */
     @Query("SELECT * FROM session_set WHERE exercise_id = :exerciseId AND is_warmup = 0 ORDER BY completed_at")
@@ -80,7 +86,7 @@ interface SessionSetDao {
 
 /** Cursor persistido de la sesión guiada (§2 `session_state`, §4). */
 @Dao
-interface SessionStateDao {
+internal interface SessionStateDao {
 
     @Query("SELECT * FROM session_state WHERE session_id = :sessionId")
     suspend fun get(sessionId: String): SessionStateEntity?

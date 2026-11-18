@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
 
 /** Métricas corporales por fecha (§2 `body_metric`). */
 @Dao
-interface BodyMetricDao {
+internal interface BodyMetricDao {
 
     @Query("SELECT * FROM body_metric ORDER BY date DESC")
     fun observeAll(): Flow<List<BodyMetricEntity>>
@@ -29,7 +29,7 @@ interface BodyMetricDao {
  * hay DataStore: ver `docs/adr/0003-persistencia-room.md`.
  */
 @Dao
-interface SettingDao {
+internal interface SettingDao {
 
     @Query("SELECT `value` FROM app_setting WHERE `key` = :key")
     suspend fun get(key: String): String?
@@ -37,8 +37,14 @@ interface SettingDao {
     @Query("SELECT * FROM app_setting ORDER BY `key`")
     fun observeAll(): Flow<List<AppSettingEntity>>
 
+    @Query("SELECT * FROM app_setting ORDER BY `key`")
+    suspend fun all(): List<AppSettingEntity>
+
     @Upsert
     suspend fun put(setting: AppSettingEntity)
+
+    @Upsert
+    suspend fun putAll(settings: List<AppSettingEntity>)
 
     @Query("DELETE FROM app_setting WHERE `key` = :key")
     suspend fun delete(key: String)

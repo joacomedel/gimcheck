@@ -48,8 +48,20 @@ internal const val DB_VERSION: Int = 1
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
-abstract class AppDatabase : RoomDatabase() {
+internal abstract class AppDatabase : RoomDatabase() {
 
+    /*
+     * Visibilidad (GIM-10): la clase **y** sus DAO son `internal`, así que ningún
+     * otro módulo puede nombrarlos. El único camino de escritura de la app son los
+     * repositorios de `app.gimcheck.data.repository`; las lecturas que la UI necesita
+     * también salen por ahí.
+     *
+     * Se restringe el **tipo** y no cada método: Kotlin no permite `internal` en un
+     * miembro de interfaz, y marcar `internal abstract fun` en la base obligaría a
+     * KSP a overridear un método con nombre manglado (`muscleDao$app_debug`). Con la
+     * clase `internal`, los accesores conservan su nombre JVM y la restricción es la
+     * misma: fuera del módulo no existe el tipo con el que se piden.
+     */
     abstract fun muscleDao(): MuscleDao
     abstract fun exerciseDao(): ExerciseDao
     abstract fun routineDao(): RoutineDao

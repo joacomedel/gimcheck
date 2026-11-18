@@ -1,5 +1,6 @@
 package app.gimcheck.data.db
 
+import androidx.annotation.VisibleForTesting
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
@@ -8,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 /** Planes y días (§2 `routine`, `routine_day`). */
 @Dao
-interface RoutineDao {
+internal interface RoutineDao {
 
     @Query("SELECT * FROM routine WHERE archived = 0 ORDER BY position, name")
     fun observeAll(): Flow<List<RoutineEntity>>
@@ -19,15 +20,27 @@ interface RoutineDao {
     @Query("SELECT * FROM routine_day WHERE routine_id = :routineId ORDER BY position, name")
     fun observeDays(routineId: String): Flow<List<RoutineDayEntity>>
 
+    /** Todos los días de todos los planes: el repositorio arma el árbol con un solo Flow. */
+    @Query("SELECT * FROM routine_day ORDER BY routine_id, position, name")
+    fun observeAllDays(): Flow<List<RoutineDayEntity>>
+
     @Query("SELECT * FROM routine_day WHERE routine_id = :routineId ORDER BY position, name")
     suspend fun daysOf(routineId: String): List<RoutineDayEntity>
+
+    @Query("SELECT COALESCE(MAX(position), -1) FROM routine_day WHERE routine_id = :routineId")
+    suspend fun maxDayPosition(routineId: String): Int
+
+    @Query("UPDATE routine_day SET name = :name WHERE id = :id")
+    suspend fun renameDay(id: String, name: String)
 
     @Query("SELECT COUNT(*) FROM routine")
     suspend fun count(): Int
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Upsert
     suspend fun upsertRoutine(routine: RoutineEntity)
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Upsert
     suspend fun upsertDay(day: RoutineDayEntity)
 
@@ -38,6 +51,21 @@ interface RoutineDao {
         }
         upsertRoutine(routine)
         days.forEach { upsertDay(it) }
+    }
+
+    /**
+     * Borra un día con sus ítems (CASCADE). Las sesiones no lo referencian por FK:
+     * `session.routine_day_id` queda huérfano y se muestra como "rutina eliminada".
+     */
+    @Query("DELETE FROM routine_day WHERE id = :id")
+    suspend fun deleteDay(id: String)
+
+    /** Agrega un día al final del plan. La posición la asigna la transacción. */
+    @Transaction
+    suspend fun appendDay(day: RoutineDayEntity): RoutineDayEntity {
+        val stored = day.copy(position = maxDayPosition(day.routineId) + 1)
+        upsertDay(stored)
+        return stored
     }
 
     /**
@@ -61,10 +89,14 @@ interface RoutineDao {
  * (o `suspend` para uso puntual, nunca bloqueante).
  */
 @Dao
-interface DayDao {
+internal interface DayDao {
 
     @Query("SELECT * FROM day_item WHERE day_id = :dayId ORDER BY position, id")
     fun observeItems(dayId: String): Flow<List<DayItemEntity>>
+
+    /** Todos los ítems de todos los días: el árbol del plan se arma con un solo Flow. */
+    @Query("SELECT * FROM day_item ORDER BY day_id, position, id")
+    fun observeAllItems(): Flow<List<DayItemEntity>>
 
     @Query("SELECT * FROM day_item WHERE day_id = :dayId ORDER BY position, id")
     suspend fun items(dayId: String): List<DayItemEntity>
@@ -78,22 +110,31 @@ interface DayDao {
     @Query("SELECT COALESCE(MAX(position), -1) FROM day_item WHERE day_id = :dayId")
     suspend fun maxPosition(dayId: String): Int
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Upsert
     suspend fun upsertItem(item: DayItemEntity)
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Query("UPDATE day_item SET position = :position WHERE id = :itemId")
     suspend fun setItemPosition(itemId: String, position: Int)
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Query("UPDATE day_item SET superset_next = :next WHERE id = :itemId")
     suspend fun setItemSupersetNext(itemId: String, next: Boolean)
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Query("DELETE FROM day_item WHERE id = :itemId")
     suspend fun deleteItemRow(itemId: String)
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+    @Query("DELETE FROM day_item WHERE day_id = :dayId")
+    suspend fun deleteItemsOf(dayId: String)
 
     /**
      * `position` es sólo el orden de ejecución (no se renumera): el último ítem
      * es el de `MAX(position)`. Misma sentencia que en `ExerciseDao`.
      */
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Query(
         "UPDATE day_item SET superset_next = 0 WHERE day_id = :dayId AND position = " +
             "(SELECT MAX(position) FROM day_item WHERE day_id = :dayId)",
@@ -181,6 +222,38 @@ interface DayDao {
             )
         }
         setItemSupersetNext(itemId, next)
+    }
+
+    /**
+     * Reemplaza todos los ítems de un día por [items], en ese orden.
+     *
+     * Es el camino de escritura masivo (seed e import): mantiene las mismas
+     * invariantes que las operaciones de a uno, porque `internal` en el DAO no
+     * alcanza para protegerlo si alguien lo llama desde el módulo.
+     *
+     * @throws IllegalArgumentException si un `sets` sale de 1..20 o si un ítem
+     *   apunta a otro día.
+     */
+    @Transaction
+    suspend fun replaceItems(dayId: String, items: List<DayItemEntity>) {
+        require(items.all { it.dayId == dayId }) {
+            "todos los ítems deben pertenecer al día $dayId"
+        }
+        require(items.all { it.sets in MIN_SETS..MAX_SETS }) {
+            "day_item.sets fuera de $MIN_SETS..$MAX_SETS: " +
+                items.filter { it.sets !in MIN_SETS..MAX_SETS }.map { it.id }
+        }
+        deleteItemsOf(dayId)
+        items.forEachIndexed { index, item ->
+            val last = index == items.lastIndex
+            upsertItem(
+                item.copy(
+                    position = index,
+                    // el último ítem del día no puede encadenar superserie (§2)
+                    supersetNext = item.supersetNext && !last,
+                ),
+            )
+        }
     }
 
     companion object {
