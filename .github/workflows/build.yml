@@ -48,6 +48,17 @@ jobs:
       - name: APK debug
         run: ./gradlew :app:assembleDebug --stacktrace
 
+      # El schema exportado por Room (app/schemas/) se commitea: es el contrato
+      # que valida MigrationTestHelper. Si el generado difiere del commiteado,
+      # falta commitear el bump (ver docs/adr/0003-persistencia-room.md).
+      - name: Schema de Room commiteado (efímero: se baja como artefacto)
+        uses: actions/upload-artifact@v7
+        with:
+          name: room-schemas
+          path: app/schemas/
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Publicar artifact gimcheck-debug.apk
         uses: actions/upload-artifact@v7
         with:

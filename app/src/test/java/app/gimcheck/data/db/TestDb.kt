@@ -20,8 +20,8 @@ internal fun inMemoryDatabase(): AppDatabase =
         AppDatabase::class.java,
     ).build()
 
-internal fun muscle(id: String, name: String = id): MuscleEntity =
-    MuscleEntity(id = id, name = name)
+internal fun muscle(id: String, name: String = id, position: Int = 0): MuscleEntity =
+    MuscleEntity(id = id, name = name, position = position)
 
 internal fun exercise(
     id: String,
