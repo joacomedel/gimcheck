@@ -40,8 +40,10 @@ class MainActivitySkeletonTest {
 
     @Test
     fun `MainActivity declara onCreate con el Bundle del ciclo de vida`() {
-        val onCreate = activityClass.getDeclaredMethod("onCreate", Bundle::class.java)
+        // getMethod (y no getDeclaredMethod) resuelve sólo métodos públicos: si
+        // esto no lanza NoSuchMethodException, onCreate existe y es público.
+        val onCreate = activityClass.getMethod("onCreate", Bundle::class.java)
         assertNotNull(onCreate)
-        assertTrue(Modifier.isPublic(onCreate.modifiers))
+        assertEquals(activityClass, onCreate.declaringClass)
     }
 }
