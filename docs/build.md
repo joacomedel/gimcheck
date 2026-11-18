@@ -24,7 +24,7 @@ Tres niveles, porque este equipo no puede compilar Android (ver
 | navigation-compose | 2.10.2 | catálogo |
 | lifecycle-* | 2.11.0 | catálogo |
 | androidx.core-ktx | 1.19.1 | catálogo |
-| kotlinx-serialization-json | 1.13.0 | catálogo |
+| kotlinx-serialization-json | **1.9.0** | catálogo (`kotlinxSerialization`), `:core` (implementation) |
 | kotlinx-datetime | 0.8.0 | `:core` (implementation) |
 | Robolectric | 4.18 | catálogo (tests de UI en JVM, más adelante) |
 | JUnit4 | 4.13.2 | `:core` (testImplementation) |
@@ -53,8 +53,23 @@ Notas de la matriz:
   `NoClassDefFoundError: com.android.build.gradle.api.BaseVariant` en
   `BuiltInKotlinServices.initBuiltInKotlinSupport` (AGP 9 eliminó la API vieja de
   variantes). Por eso **no** se fuerza KGP desde el root y el plugin de Compose usa
-  la misma versión que Kotlin (2.2.10). Es el único punto donde la matriz difiere de
-  §5; el resto (Gradle, AGP, Compose BOM, Room, AndroidX, kotlinx) queda como estaba.
+  la misma versión que Kotlin (2.2.10). Es el primer punto donde la matriz se
+  aparta de §5; el segundo es kotlinx-serialization-json (nota siguiente), que
+  baja por la misma causa. El resto (Gradle, AGP, Compose BOM, Room, AndroidX,
+  kotlinx-datetime) queda como estaba.
+- **kotlinx-serialization-json queda en 1.9.0, no en 1.13.0** (§5 del análisis
+  técnico proponía 1.13.0). La 1.13.0 se publicó con **metadata de Kotlin 2.4** y
+  el compilador del repo es **2.2.10** (la KGP built-in de AGP 9.5.1, que no se
+  puede overridear sin romper `BaseVariant`, ver nota anterior). Resultado: la
+  compilación de `:core` muere al leer el `.class` de la librería con
+  `Module was compiled with an incompatible version of Kotlin. The binary version
+  of its metadata is 2.4.0, expected version is 2.2.0`. La 1.9.0 es la que compila
+  con Kotlin 2.2.10 y cubre todo lo que usa `:core` (`@Serializable`, JSON con
+  `encodeDefaults`, `ignoreUnknownKeys`). **Cuando suba Kotlin** (AGP que traiga
+  built-in ≥ 2.4) se puede volver a subir la librería: cambiar
+  `kotlinxSerialization` en `gradle/libs.versions.toml`, correr
+  `make check` y actualizar esta fila y la de §5. El motivo está repetido como
+  comentario en el propio catálogo, arriba de la entrada `kotlinxSerialization`.
 - No se declara `toolchain(17)`: en el Moto solo existe JDK 21 y un toolchain 17
   obligaría a descargar otro JDK. El bytecode sale 17 igual (`jvmTarget` y
   `sourceCompatibility`/`targetCompatibility` = 17).
@@ -149,7 +164,9 @@ Equipo: 3.4 GiB RAM (1.8 GiB disponibles), 8 núcleos, `taskset -c 0-1`.
 
 Conclusiones:
 
-- El gate local **funciona**: `:core:test` compila y los 2 tests pasan sin SDK.
+- El gate local **funciona**: `:core:test` compila y los tests pasan sin SDK. (En
+  GIM-1 eran 2 tests; hoy son **112** — el conteo al día está en `README.md`
+  §Estado real. Las mediciones de esta sección son de aquel momento, con 2 tests.)
 - Las dos últimas corridas son pesadas y **no son el régimen**: se hicieron con
   KGP 2.2.10 entrando por primera vez y con el equipo ya cargado por otra sesión.
   El pico térmico de 65 °C supera el techo de la política local (58 °C) y es la

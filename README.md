@@ -6,20 +6,25 @@ descanso que toma la pantalla y gráficos propios.
 
 Repo: [`joacomedel/gimcheck`](https://github.com/joacomedel/gimcheck) (público), rama `master`.
 
-## Estado real (2026-11-17)
+## Estado real (2026-11-18)
 
-**Esqueleto que compila y publica un APK instalable. No hay producto todavía.**
+**El dominio está completo y verificado contra la web. La app todavía no tiene UI: el APK
+que se publica es un cascarón que muestra el texto "GimCheck".**
 
 | Pieza | Estado |
 |---|---|
-| `:core` (dominio Kotlin puro) | sólo `CoreInfo` + 1 test. Modelo, fórmulas y máquina de estados llegan en GIM-4..GIM-8 |
-| `:app` (Android) | `MainActivity` que pinta el texto "GimCheck" |
+| `:core` (dominio Kotlin puro) | **completo para v1**: modelo y migrador de la web (`v1..v21`), `dayStats` con series efectivas y volumen por músculo, conflictos de superserie y pares multiarticulares, e1RM (Epley/Brzycki) + PR por serie, máquina de estados de la sesión guiada, validadores del editor, export/import JSON (backup v1 y plan de la web). **112 tests**, paridad con la web verificada en navegador real (`docs/paridad-web.md`) |
+| `:app` (Android) | `MainActivity` que pinta el texto "GimCheck". **Cero pantallas, cero ViewModel, cero Room** |
 | Las 9 pantallas | **0 de 9** (ver tabla abajo) |
-| Room / persistencia | no aplicado (dependencia en el catálogo, `KSP` sin usar) |
+| Room / persistencia | no aplicado (dependencia en el catálogo, `KSP` sin usar). El único I/O es el JSON de `:core`, todavía sin cablear a la UI |
 | Alertas de descanso, servicio en primer plano, alarmas | no existen |
 | Gráficos | no existen |
-| CI | verde: `:core:test` + `:app:lintDebug` + `:app:assembleDebug` + artifact `gimcheck-debug.apk` |
+| CI | verde: `:core:test` (112 tests) + `:app:lintDebug` + `:app:assembleDebug` + artifact `gimcheck-debug.apk` |
 | Gate local (`:core`) | verde, con guardas de RAM/temperatura/tiempo |
+
+En una frase: lo que se puede probar hoy es **la lógica**, con `make check`; lo que todavía
+no se puede probar es **usar la app**, porque no hay nada que tocar más allá del texto
+inicial. Ninguna de las 9 pantallas está empezada.
 
 Lo que hay que saber antes de tocar código: este equipo **no compila Android** (no existe
 `aapt2` para linux-arm64). El APK se compila en CI; localmente sólo corre el `:core`.
@@ -37,6 +42,8 @@ Lo que hay que saber antes de tocar código: este equipo **no compila Android** 
 | targetSdk / minSdk | 36 / 26 |
 | JDK de build | 21 (host y CI); bytecode 17 |
 | KSP / Room | 2.3.14 / 2.8.5, declarados, **sin aplicar** |
+| kotlinx-serialization-json | **1.9.0**, no 1.13.0: la 1.13 trae metadata de Kotlin 2.4 y el compilador es 2.2.10 (razón en [`docs/build.md`](docs/build.md)) |
+| kotlinx-datetime | 0.8.0 |
 
 Tabla completa con el porqué de cada pin y las trampas de matriz: [`docs/build.md`](docs/build.md).
 

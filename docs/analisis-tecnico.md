@@ -132,9 +132,13 @@ El step `setup-gradle` cachea `~/.gradle`; el SDK de Android lo instala `setup-a
 >   (compose 1.12.1) declaran `minCompileSdk=37` en su AAR metadata y `:app:checkDebugAarMetadata`
 >   falla con 13 issues. La API 37 se publica como `platforms;android-37.0`, así que el build
 >   declara `compileSdk = 37` + `compileSdkMinor = 0`.
+> - **kotlinx-serialization-json 1.13.0 → 1.9.0** (GIM-8). La 1.13.0 trae metadata de Kotlin 2.4
+>   y el compilador de acá es 2.2.10: `:core` no compila contra ella
+>   (`binary version of its metadata is 2.4.0, expected version is 2.2.0`). Vuelve a subir sola
+>   cuando el built-in de AGP traiga Kotlin ≥ 2.4.
 > - `targetSdk 36` y `minSdk 26` no cambian.
 >
-> El resto de esta tabla (Gradle 9.9.1, AGP 9.5.1, Compose BOM, Room, AndroidX, kotlinx,
+> El resto de esta tabla (Gradle 9.9.1, AGP 9.5.1, Compose BOM, Room, AndroidX, kotlinx-datetime,
 > Robolectric, JUnit) es exactamente lo que está declarado en `gradle/libs.versions.toml`.
 
 | Artefacto | Versión | Por qué |
@@ -149,7 +153,7 @@ El step `setup-gradle` cachea `~/.gradle`; el SDK de Android lo instala `setup-a
 | navigation-compose | 2.10.2 | 9 destinos, tipos simples |
 | lifecycle-* | 2.11.0 | ViewModel + `collectAsStateWithLifecycle` |
 | androidx.core-ktx | 1.19.1 | compat |
-| kotlinx-serialization-json | 1.13.0 | backup/import JSON |
+| kotlinx-serialization-json | **1.9.0** | backup/import JSON. §5 pedía 1.13.0, pero trae metadata de Kotlin 2.4 y el compilador es 2.2.10 → subir cuando suba Kotlin (detalle en `docs/build.md`) |
 | kotlinx-datetime | 0.8.0 | fechas ISO, semanas ISO |
 | Robolectric | 4.18 | tests de UI Compose en JVM (sin emulador) |
 | JUnit4 + kotlin.test | 4.13.2 | tests de `:core` |

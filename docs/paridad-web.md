@@ -5,17 +5,40 @@ que devuelve `:core` en Kotlin. Cualquier diferencia distinta de cero es un bug 
 
 ## Cómo se obtuvieron los valores de la web
 
-El equipo no tiene motor de JavaScript (no hay `node`, `bun`, `deno` ni `qjs`), así que no se
-pudo ejecutar la página. En su lugar:
+Dos caminos, en este orden:
 
-1. Se transcribió `seed()` + `ensureV2()` + `groupsOf/dayStats/effSets/volume/status/fmt/num`
-   (HTML líneas 146-183 y 323-413) a un script de cálculo desechable, con los literales
-   **extraídos por regex del propio HTML**, no copiados a mano.
-2. Se verificaron a mano dos días completos contra las reglas (Día 1: 735 s de trabajo,
-   1320 s de descanso, 450 s de otros, 2505 s; Día 4: 710 / 1665 / 510 / 2885). Coinciden.
-3. El fixture de test (`core/src/test/kotlin/app/gimcheck/core/HtmlSeed.kt`) se **generó**
-   leyendo los literales del HTML con un script, para que un typo de transcripción no pueda
-   coincidir consigo mismo.
+1. **Navegador real (2026-11-18) — es la verificación que vale.** El equipo no tiene
+   `node`/`bun`/`deno`, pero sí **Chromium headless manejado por CDP** (`cdp`), que ejecuta el
+   JavaScript de la propia página. Se abrió el HTML del repo y se evaluaron las funciones de
+   la página, no una copia:
+
+   ```bash
+   cdp start
+   cdp goto "file:///root/work/apps/android/GimCheck/Rutinas de Gimnasio.html"
+   cdp eval '<expr>'      # una expresión por familia: dayStats, volume, ssConflicts, heavyPairs
+   cdp eval 'serialize(1)'
+   cdp stop
+   ```
+
+   Resultado: **coincide todo** lo que dice este documento. Totales por día
+   **2505 / 2565 / 2490 / 2885 / 2535 / 2120 s**, semana **15100 s**, **106** series, las
+   **15** filas de `volume` (directas, indirectas y totales) con su `estado`, y 0 conflictos /
+   0 pares pesados en las Rutinas A y B del seed. El `serialize(1)` que devuelve la página es
+   **idéntico** al fixture `core/src/test/resources/web/web_v21.json` salvo los `id` que
+   genera `uid()` en cada carga (aleatorios por diseño: se comparan sin ellos). Es el mismo
+   JSON que consume `StatsParityTest` / `WebImportTest`.
+
+2. **Transcripción original (GIM-4), como respaldo documental y para regenerar el fixture.**
+   Antes de usar el navegador se hizo así:
+
+- Se transcribió `seed()` + `ensureV2()` + `groupsOf/dayStats/effSets/volume/status/fmt/num`
+  (HTML líneas 146-183 y 323-413) a un script de cálculo desechable, con los literales
+  **extraídos por regex del propio HTML**, no copiados a mano.
+- Se verificaron a mano dos días completos contra las reglas (Día 1: 735 s de trabajo,
+  1320 s de descanso, 450 s de otros, 2505 s; Día 4: 710 / 1665 / 510 / 2885). Coinciden.
+- El fixture de test (`core/src/test/kotlin/app/gimcheck/core/HtmlSeed.kt`) se **generó**
+  leyendo los literales del HTML con un script, para que un typo de transcripción no pueda
+  coincidir consigo mismo.
 
 Convenciones: duraciones en segundos; volumen en series efectivas; `Δ` = Kotlin − web.
 
@@ -167,3 +190,7 @@ Formato de salida: `formatDuration(15100)` → `4 h 12 min` y `formatNumber(1.75
 `StatsParityTest` (los números de estas tablas) y `StatsEdgeCasesTest` (los casos borde y los
 formatos), `SupersetsTest` (conflictos y pares pesados) y `EditorValidationTest` (invariantes
 del editor). El fixture `HtmlSeed.kt` se regenera leyendo el HTML si los datos de ejemplo cambian.
+
+Que la columna "web" de las tablas sea la de la página no se asume: se comprobó ejecutando la
+página en Chromium headless por CDP (ver §"Cómo se obtuvieron los valores de la web", punto 1).
+La columna "Kotlin" son los tests; ninguno de los dos lados se copia del otro.
