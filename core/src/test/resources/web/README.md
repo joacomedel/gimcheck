@@ -24,9 +24,9 @@ Los ids. La web los crea con `uid()` (aleatorio) en cada arranque, así que un b
 tiene ids distintos en cada dispositivo y no sirve como fixture reproducible. Acá son
 deterministas (`da1`, `db2-3`, `pa`, `pb`, …), con el mismo formato de texto corto.
 
-## Deuda
+## Backup real
 
-El dueño todavía no entregó un backup real de su navegador. La importación está probada
-contra el estado por defecto del HTML y contra las versiones viejas reconstruidas con las
-migraciones del propio archivo; falta el contraste con un backup de uso real (días
-renombrados, ejercicios propios, planes duplicados).
+`owner_backup_v21.json` es el backup que el dueño exportó de su navegador el 2026-11-18
+(v21, 10,7 KB). Se commiteó **tal cual llegó**, sin reformatear: es evidencia, no un
+fixture generado. `OwnerBackupTest` lo importa y comprueba que el modelo resultante es el
+mismo que el de `web_v21.json` salvo los ids de `uid()` (que cambian por dispositivo).

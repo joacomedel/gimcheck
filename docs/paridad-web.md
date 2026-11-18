@@ -194,3 +194,8 @@ del editor). El fixture `HtmlSeed.kt` se regenera leyendo el HTML si los datos d
 Que la columna "web" de las tablas sea la de la página no se asume: se comprobó ejecutando la
 página en Chromium headless por CDP (ver §"Cómo se obtuvieron los valores de la web", punto 1).
 La columna "Kotlin" son los tests; ninguno de los dos lados se copia del otro.
+
+La importación está probada además contra el **backup real del dueño** (2026-11-18,
+`core/src/test/resources/web/owner_backup_v21.json`, copiado tal como lo exportó el
+navegador): `OwnerBackupTest` verifica estos mismos totales sobre ese archivo y que el
+modelo importado sea idéntico al del fixture del HTML salvo los ids de `uid()`.
