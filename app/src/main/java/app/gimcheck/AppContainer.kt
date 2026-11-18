@@ -7,6 +7,7 @@ import app.gimcheck.data.repository.ExerciseRepository
 import app.gimcheck.data.repository.MetricsRepository
 import app.gimcheck.data.repository.RoutineRepository
 import app.gimcheck.data.repository.SessionRepository
+import app.gimcheck.data.repository.SessionResumer
 import app.gimcheck.data.repository.SettingsRepository
 import app.gimcheck.data.seed.SeedImporter
 import kotlinx.coroutines.CancellationException
@@ -41,6 +42,14 @@ class AppContainer(context: Context) {
     val sessions: SessionRepository = SessionRepository(database)
     val metrics: MetricsRepository = MetricsRepository(database)
     val settings: SettingsRepository = SettingsRepository(database)
+
+    /**
+     * Reanudación de la sesión guiada al abrir la app (GIM-39). Vive en el contenedor,
+     * no en la activity: la rehidratación y el [SessionResumer.resumed] tienen que
+     * sobrevivir a una recreación por rotación, y el enganche de `ON_START` lo hace
+     * `GimCheckRoot`.
+     */
+    val sessionResumer: SessionResumer = SessionResumer(sessions, background)
 
     private val seedImporter: SeedImporter = SeedImporter(database)
 

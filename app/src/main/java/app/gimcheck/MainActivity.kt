@@ -25,6 +25,10 @@ class MainActivity : ComponentActivity() {
         // Application para que los tests JVM no toquen disco al construir el grafo.
         container.seedIfEmptyAsync()
 
+        // Ciclo de vida de la activity para el enganche de GIM-39: `GimCheckRoot` reanuda
+        // la sesión guiada en `ON_START` (el aviso de "descanso terminado" al abrir).
+        val activityLifecycle = lifecycle
+
         setContent {
             // `theme` es de §8 y vive en Room (SettingsRepository): el Flow vuelve a
             // emitir al cambiar el ajuste, este `collectAsState` recompone y
@@ -45,7 +49,10 @@ class MainActivity : ComponentActivity() {
             }
 
             GimCheckTheme(mode = settings.theme) {
-                GimCheckRoot()
+                GimCheckRoot(
+                    lifecycle = activityLifecycle,
+                    sessionResumer = container.sessionResumer,
+                )
             }
         }
     }

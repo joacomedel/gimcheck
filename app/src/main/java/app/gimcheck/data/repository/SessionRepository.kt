@@ -169,8 +169,11 @@ class SessionRepository internal constructor(
      *
      * Emite `null` si no hay sesión `ACTIVE` o si su día ya no existe (rutina
      * eliminada). **No aplica [Restore]**: el deadline vence solo y quién lo resuelve
-     * es [resumeActive] al abrir la app o [dispatch] con un `Tick`. Este Flow es para
-     * la pantalla que ya está viva (sigue el cursor cuando otra corrutina lo mueve).
+     * es [resumeActive], que corre en `ON_START` vía [SessionResumer] al abrir la app,
+     * o [dispatch] con un `Tick`. Este Flow es para la pantalla que ya está viva
+     * (sigue el cursor cuando otra corrutina lo mueve); **no es la única fuente del
+     * estado**: lo que hay que mostrar al abrir lo publica [SessionResumer.resumed]
+     * (GIM-39).
      */
     fun observeGuided(): Flow<GuidedSession?> =
         combine(
