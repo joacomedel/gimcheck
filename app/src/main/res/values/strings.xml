@@ -72,7 +72,7 @@
     <string name="ph_peso_corporal">Peso corporal (kg)</string>
     <string name="ph_peso_serie">Peso (kg)</string>
     <string name="ph_reps">Reps</string>
-    <string name="ph_confirmar_salida">¿Terminar la sesión y salir?</string>
+    <string name="ph_confirmar_salida">¿Salir? La sesión sigue abierta.</string>
     <string name="ph_plan_full_body">Full body</string>
     <string name="ph_plan_torso_pierna">Torso / pierna</string>
     <string name="ph_dia_a">Día A</string>
@@ -109,4 +109,28 @@
         <item quantity="one">%1$d serie</item>
         <item quantity="other">%1$d series</item>
     </plurals>
+
+    <!--
+      Entrenar (§6 fila 2, GIM-21). Copy de la pantalla real: sentence case y voseo.
+      "Serie hecha" ya existe en accion_serie_hecha.
+    -->
+    <string name="entrenar_bloque">Bloque %1$d de %2$d</string>
+    <string name="entrenar_superserie">Superserie %1$d/%2$d</string>
+    <string name="entrenar_ronda">Ronda %1$d de %2$d</string>
+    <string name="entrenar_progreso">%1$d/%2$d series</string>
+    <string name="entrenar_seguir_con">Seguí con %1$s</string>
+    <string name="entrenar_descanso_terminado">Descanso terminado</string>
+    <string name="entrenar_restar_15">−15 s</string>
+    <string name="entrenar_sumar_15">+15 s</string>
+    <string name="entrenar_saltar">Saltar</string>
+    <string name="entrenar_calentamiento">Calentamiento</string>
+    <string name="entrenar_calentamiento_corto">calentamiento</string>
+    <string name="entrenar_editar">Editar</string>
+    <string name="entrenar_guardar">Guardar</string>
+    <string name="entrenar_borrar_pregunta">¿Borrar esta serie?</string>
+    <string name="accion_borrar">Borrar</string>
+    <string name="entrenar_sin_sesion">No hay una sesión abierta.</string>
+    <string name="accion_volver_hoy">Volver a Hoy</string>
+    <string name="entrenar_fin_titulo">Sesión terminada</string>
+    <string name="entrenar_fin_detalle">El resumen de la sesión llega en la próxima versión.</string>
 </resources>

@@ -33,7 +33,8 @@ import app.gimcheck.ui.screens.RutinasScreen
  *
  * Criterio de este ticket: las nueve rutas existen y se llega a todas sin crash.
  * - barra inferior → Hoy, Rutinas, Progreso, Historial, Ajustes
- * - Hoy → Entrenar (modal) → Descanso terminado
+ * - Hoy → Entrenar (modal); "Descanso terminado" se abre desde el aviso de descanso
+ *   (GIM-22/GIM-23), no desde Entrenar
  * - Rutinas → Ejercicios; Progreso → Comparar
  */
 @Composable
@@ -57,10 +58,7 @@ fun GimNavHost(
             )
         }
         composable(GimDestination.ENTRENAR.route) {
-            EntrenarScreen(
-                onExit = { navController.popBackStack() },
-                onSetDone = { navController.navigate(GimDestination.DESCANSO.route) },
-            )
+            EntrenarScreen(onExit = { navController.popBackStack() })
         }
         composable(GimDestination.DESCANSO.route) {
             DescansoScreen(
