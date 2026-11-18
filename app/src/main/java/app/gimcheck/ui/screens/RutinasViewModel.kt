@@ -385,8 +385,7 @@ class RutinasViewModel internal constructor(
         val to = (from + offset).coerceIn(0, current.lastIndex)
         if (to == from) return
         val moved = current.toMutableList().apply {
-            removeAt(from)
-            add(to, itemId)
+            add(to, removeAt(from))
         }
         applyDraft(moved)
         publish(data)
