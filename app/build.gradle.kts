@@ -3,6 +3,9 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    // KSP es el único generador de código: Room 2.8.5 lo usa para los DAO y para
+    // exportar el schema (ver docs/adr/0003-persistencia-room.md).
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -39,6 +42,28 @@ android {
         // defecto).
         buildConfig = true
     }
+
+    // Los tests de Room (creación/migración, DAO, integridad) corren en la JVM con
+    // Robolectric: no hay emulador ni en este equipo ni en CI. Robolectric necesita
+    // los recursos y assets de la variante, de ahí includeAndroidResources.
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
+    sourceSets {
+        // El schema exportado por Room se copia a los assets de `debug` para que
+        // MigrationTestHelper lo lea con context.assets.open("<clase>/<version>.json")
+        // en los tests JVM. Sólo debug: el APK de release no lo lleva.
+        getByName("debug").assets.srcDir("$projectDir/schemas")
+    }
+}
+
+// exportSchema = true escribe app/schemas/<clase>/<version>.json. El schema se
+// commitea: es el contrato que valida MigrationTestHelper.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -53,9 +78,18 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
 
+    // Room: la persistencia local de todo el modelo (docs/especificacion.md §2).
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    // Tests JVM de :app (`:app:testDebugUnitTest`, sin emulador). Hoy sin
-    // Robolectric: no hace falta contexto ni recursos (ver el KDoc del test).
+    // Tests JVM de :app (`:app:testDebugUnitTest`, sin emulador). Robolectric
+    // porque Room necesita Context/Instrumentation reales; room-testing trae
+    // MigrationTestHelper.
     testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.room.testing)
 }

@@ -17,16 +17,17 @@ Tres niveles, porque este equipo no puede compilar Android (ver
 | Android Gradle Plugin | **9.5.1** | `gradle/libs.versions.toml` → `agp`, aplicado **solo** en `app/build.gradle.kts` |
 | Kotlin (KGP) | **2.2.10** | la que trae AGP 9.5.1 (built-in Kotlin). **No** se overridea con `buildscript` |
 | Compose compiler | **2.2.10** | plugin `org.jetbrains.kotlin.plugin.compose` (misma versión que Kotlin) |
-| KSP | 2.3.14 | catálogo (`ksp`); se aplica recién con Room (GIM-9) |
+| KSP | 2.3.14 | catálogo (`ksp`); aplicado en `:app` desde GIM-9 (genera los DAO de Room y exporta el schema) |
 | Compose BOM | 2026.09.00 | catálogo (`composeBom`) |
-| Room | 2.8.5 | catálogo (`room`); sin aplicar todavía |
+| Room | 2.8.5 | catálogo (`room`); aplicado en `:app` desde GIM-9 (`runtime` + `ktx` + `room-compiler` por KSP) |
 | activity-compose | 1.13.0 | catálogo |
 | navigation-compose | 2.10.2 | catálogo |
 | lifecycle-* | 2.11.0 | catálogo |
 | androidx.core-ktx | 1.19.1 | catálogo |
 | kotlinx-serialization-json | **1.9.0** | catálogo (`kotlinxSerialization`), `:core` (implementation) |
 | kotlinx-datetime | 0.8.0 | `:core` (implementation) |
-| Robolectric | 4.18 | catálogo (tests de UI en JVM, más adelante) |
+| Robolectric | 4.18 | catálogo; `testImplementation` en `:app` desde GIM-9 (tests de Room en JVM) |
+| androidx.test:core | 1.7.0 | catálogo (`androidxTestCore`); `testImplementation` en `:app` (`ApplicationProvider`, `InstrumentationRegistry`) |
 | JUnit4 | 4.13.2 | `:core` (testImplementation) |
 | JDK de build | **21** (temurin en CI, OpenJDK 21.0.13 en el Moto) | `setup-java` / host |
 | Bytecode / `jvmTarget` | **17** | `compileOptions` en `:app`, `java` + `kotlin.compilerOptions` en `:core` |
@@ -263,17 +264,41 @@ con evidencia que no se ejecutaba.
 | Pieza | Estado hoy |
 |---|---|
 | Runner | JUnit4 (`testImplementation(libs.junit4)` en `app/build.gradle.kts`) |
-| Tests | `app/src/test/java/app/gimcheck/MainActivitySkeletonTest.kt` (3 tests del esqueleto) |
-| Robolectric | **no se usa todavía**; 4.18 está en el catálogo y se agrega cuando GIM-9 necesite contexto/recursos |
-| Recursos Android en tests | `testOptions.unitTests.isIncludeAndroidResources` **no** está activado (no hace falta sin Robolectric) |
+| Tests | `app/src/test/java/` — `MainActivitySkeletonTest` (3, esqueleto) + los de Room (GIM-9, ver abajo) |
+| Robolectric | **activo** (4.18): Room necesita `Context`/`Instrumentation` reales y no hay emulador |
+| Recursos Android en tests | `testOptions.unitTests.isIncludeAndroidResources = true` (Robolectric carga recursos y assets de la variante) |
 | `BuildConfig` | activado (`buildFeatures.buildConfig = true`) porque el test verifica `BuildConfig.APPLICATION_ID` |
 
-El test es de esqueleto de verdad, no un `assertTrue(true)`: valida que el
+### Tests de Room (GIM-9)
+
+Van en `app/src/test/java/app/gimcheck/data/db/` y corren en `:app:testDebugUnitTest`
+con **Robolectric 4.18**, la misma JVM del runner. **No hay emulador ni
+`connectedAndroidTest`**: no existen en este proyecto y no hay nada que prometer
+ahí.
+
+| Test | Qué fija |
+|---|---|
+| `SchemaCreationTest` | la base se crea **desde cero (v1)** con `MigrationTestHelper.createDatabase(1)`; tablas, columnas, FK con CASCADE e índices comparados contra el JSON exportado; el JSON está en `app/schemas/` y en los assets de debug |
+| `IntegrityRulesTest` | reglas de §2: borrar ejercicio limpia `day_item` y recalcula `superset_next` del último, `superset_next` nunca en el último, `sets ∈ 1..20`, `factor ∈ [0,1]`, una sola sesión `ACTIVE`, borrar rutina no borra sesiones |
+| `DaoContractTest` | lectura con `Flow` (se actualiza con cada escritura), orden por `position`, `moveItem`, ajustes key/value, métrica con fecha natural |
+| `MainThreadQueryTest` | una consulta bloqueante en el hilo principal lanza `IllegalStateException`; las escrituras `suspend` sí corren desde el hilo principal |
+
+Dos piezas de build que sostienen lo anterior (en `app/build.gradle.kts`):
+
+- `ksp { arg("room.schemaLocation", "$projectDir/schemas") }` + `exportSchema = true`:
+  el schema versionado se escribe en `app/schemas/<clase>/<version>.json` y **se commitea**.
+- `sourceSets["debug"].assets.srcDir("$projectDir/schemas")`: `MigrationTestHelper`
+  lee el JSON con `context.assets.open(...)`; sólo la variante `debug` (y los tests)
+  lo llevan, el APK de release no.
+
+Al subir la versión del esquema hay que agregar `Migration(n, n+1)`, su test
+(`createDatabase(n)` + `runMigrationsAndValidate(n+1, listOf(...))`) y el JSON nuevo.
+El detalle está en `docs/adr/0003-persistencia-room.md`.
+
+El primer test de esqueleto es de verdad, no un `assertTrue(true)`: valida que el
 `applicationId` generado por el build es `app.gimcheck`, que `MainActivity` vive
 en ese package, que extiende `ComponentActivity`, que es pública, concreta y
-declara `onCreate(Bundle)`. Cuando entre Room (GIM-9) el mismo task empieza a
-correr los tests de migración bajo Robolectric sin tocar el workflow: sólo hay
-que agregar la dependencia y activar `isIncludeAndroidResources`.
+declara `onCreate(Bundle)`.
 
 Los tests van en `app/src/test/java/` (y no `src/test/kotlin/`) a propósito: es
 el directorio de fuentes que AGP siempre registra; Kotlin compila `.kt` ahí sin

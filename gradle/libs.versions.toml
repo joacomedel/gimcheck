@@ -22,6 +22,9 @@ kotlinxSerialization = "1.9.0"
 kotlinxDatetime = "0.8.0"
 robolectric = "4.18"
 junit = "4.13.2"
+# androidx.test:core 1.7.0 (estable). Robolectric 4.18 ya trae monitor 1.8.0;
+# core sólo se usa por ApplicationProvider/InstrumentationRegistry en los tests.
+androidxTestCore = "1.7.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -39,11 +42,15 @@ androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+# room-testing sólo en tests JVM (MigrationTestHelper); no hay emulador ni
+# connectedAndroidTest en este proyecto (ver docs/build.md).
+androidx-room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 junit4 = { module = "junit:junit", version.ref = "junit" }
 kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
