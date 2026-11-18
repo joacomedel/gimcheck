@@ -11,10 +11,18 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 internal interface SessionDao {
 
-    @Query("SELECT * FROM session WHERE status = 'ACTIVE' LIMIT 1")
+    /**
+     * La sesión abierta.
+     *
+     * §2 dice que sólo hay una `ACTIVE`; si un import o datos viejos dejaron dos,
+     * el desempate es **determinista** (la más reciente por `started_at`, y el id
+     * mayor como último criterio) y no el orden arbitrario de SQLite. La fila
+     * elegida es la que el usuario estaba usando (GIM-11).
+     */
+    @Query("SELECT * FROM session WHERE status = 'ACTIVE' ORDER BY started_at DESC, id DESC LIMIT 1")
     suspend fun active(): SessionEntity?
 
-    @Query("SELECT * FROM session WHERE status = 'ACTIVE' LIMIT 1")
+    @Query("SELECT * FROM session WHERE status = 'ACTIVE' ORDER BY started_at DESC, id DESC LIMIT 1")
     fun observeActive(): Flow<SessionEntity?>
 
     @Query("SELECT * FROM session WHERE id = :id")
@@ -66,6 +74,10 @@ internal interface SessionSetDao {
     @Query("SELECT * FROM session_set WHERE session_id = :sessionId ORDER BY completed_at, round_index, set_index")
     suspend fun ofSession(sessionId: String): List<SessionSetEntity>
 
+    /** Ids ya guardados de una sesión: el cursor persiste sólo las series nuevas (GIM-11). */
+    @Query("SELECT id FROM session_set WHERE session_id = :sessionId")
+    suspend fun idsOfSession(sessionId: String): List<String>
+
     /** Todas las series de todas las sesiones: el histórico se arma con un solo Flow. */
     @Query("SELECT * FROM session_set ORDER BY session_id, completed_at, round_index, set_index")
     fun observeAll(): Flow<List<SessionSetEntity>>
@@ -93,6 +105,19 @@ internal interface SessionStateDao {
 
     @Query("SELECT * FROM session_state WHERE session_id = :sessionId")
     fun observe(sessionId: String): Flow<SessionStateEntity?>
+
+    /**
+     * Cursor de la sesión abierta (GIM-11). El JOIN con `session` filtra las filas
+     * de sesiones ya terminadas: `session_state` no se borra al cerrar, así que la
+     * única fuente de "hay sesión viva" sigue siendo `session.status`.
+     */
+    @Query(
+        "SELECT state.session_id, state.block_index, state.round_index, state.item_index, " +
+            "state.rest_ends_at, state.rest_seconds, state.updated_at " +
+            "FROM session_state state JOIN session s ON s.id = state.session_id " +
+            "WHERE s.status = 'ACTIVE' LIMIT 1",
+    )
+    fun observeActive(): Flow<SessionStateEntity?>
 
     @Upsert
     suspend fun upsert(state: SessionStateEntity)

@@ -1,12 +1,22 @@
 package app.gimcheck.data.repository
 
+import app.gimcheck.core.GuidedSession
+import app.gimcheck.core.LoggedSet
+import app.gimcheck.core.Restore
 import app.gimcheck.core.Session
+import app.gimcheck.core.SessionEffect
+import app.gimcheck.core.SessionEvent
 import app.gimcheck.core.SessionSet
+import app.gimcheck.core.SessionStatus as CoreStatus
+import app.gimcheck.core.SessionTransition
+import app.gimcheck.core.groups
+import app.gimcheck.core.reduce
 import app.gimcheck.data.Instants
 import app.gimcheck.data.db.AppDatabase
 import app.gimcheck.data.db.SessionEntity
 import app.gimcheck.data.db.SessionSetEntity
-import app.gimcheck.data.db.SessionStatus
+import app.gimcheck.data.db.SessionStateEntity
+import app.gimcheck.data.db.SessionStatus as RowStatus
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -14,30 +24,48 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDateTime
+import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
 
 /**
- * Sesiones y series anotadas.
+ * Sesiones, series anotadas y **cursor de la sesión guiada**.
  *
  * **Fechas (deuda de GIM-9)**: `session.started_at`/`ended_at` y
  * `session_set.completed_at` están en epoch millis UTC; el dominio de `:core` usa
  * `LocalDateTime` (hora local). La conversión la hace [Instants] con [zone], en este
  * borde y en ningún otro: los tests pasan una zona fija y verifican ida y vuelta.
  *
- * **Sesión abierta única**: no la garantiza el repositorio sino `SessionDao.startSession`
- * (§2): si ya hay una `ACTIVE`, [start] falla y la UI pregunta si continuarla o
- * descartarla. [finish] y [abandon] son la respuesta a esa pregunta.
+ * **Sesión abierta única**: la garantía es `SessionDao.startSession` (§2): si ya hay
+ * una `ACTIVE`, [start] falla y la UI pregunta si continuarla o descartarla. [finish] y
+ * [abandon] son la respuesta a esa pregunta. Si datos viejos o un import dejaron dos
+ * `ACTIVE`, la que gana es determinista: la más reciente por `started_at`
+ * (`SessionDao.active`), y ese caso está cubierto por un test (GIM-11).
+ *
+ * **Sesión guiada (GIM-11)**: este repositorio es el borde de `session_state`. La
+ * máquina de estados es de `:core` y **no se duplica acá**: [dispatch] llama a
+ * [reduce] con el estado que le pasa el llamador, y obedece el efecto
+ * [SessionEffect.PersistState] para escribir el cursor (`block_index`, `round_index`,
+ * `item_index`, `rest_ends_at` como epoch millis, `rest_seconds`, `updated_at`) y las
+ * series nuevas. [resumeActive] reconstruye el estado desde la base y le aplica
+ * `Restore(now)`: si el deadline venció mientras el proceso estaba muerto, la máquina
+ * deja el cursor intacto y devuelve `RestFinished` + `ShowRestDone` (mostrar "descanso
+ * terminado"); si sigue vivo, devuelve `StartRest(lo que falta)`, calculado desde el
+ * deadline absoluto y no desde una cuenta regresiva guardada.
  */
 class SessionRepository internal constructor(
     db: AppDatabase,
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val io: CoroutineDispatcher = Dispatchers.IO,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    private val now: () -> Instant = Instant::now,
 ) {
 
     private val sessionDao = db.sessionDao()
     private val sessionSetDao = db.sessionSetDao()
+    private val sessionStateDao = db.sessionStateDao()
+    private val routineDao = db.routineDao()
+    private val routines = RoutineRepository(db, io, newId)
 
     /** La sesión abierta, o `null`. La UI observa esto para saber si hay sesión viva. */
     fun observeActive(): Flow<Session?> =
@@ -73,7 +101,7 @@ class SessionRepository internal constructor(
                 routineDayId = session.routineDayId,
                 startedAt = Instants.toEpochMillis(session.startedAt, zone),
                 endedAt = null,
-                status = SessionStatus.ACTIVE,
+                status = RowStatus.ACTIVE,
                 bodyWeightKg = session.bodyWeightKg,
             ),
         )
@@ -81,12 +109,12 @@ class SessionRepository internal constructor(
 
     /** Cierra la sesión como terminada. */
     suspend fun finish(id: String, endedAt: LocalDateTime, notes: String? = null) = withContext(io) {
-        sessionDao.close(id, Instants.toEpochMillis(endedAt, zone), SessionStatus.FINISHED, notes)
+        sessionDao.close(id, Instants.toEpochMillis(endedAt, zone), RowStatus.FINISHED, notes)
     }
 
     /** Cierra la sesión como abandonada (descartar la que quedó abierta). */
     suspend fun abandon(id: String, endedAt: LocalDateTime) = withContext(io) {
-        sessionDao.close(id, Instants.toEpochMillis(endedAt, zone), SessionStatus.ABANDONED, null)
+        sessionDao.close(id, Instants.toEpochMillis(endedAt, zone), RowStatus.ABANDONED, null)
     }
 
     /**
@@ -134,6 +162,213 @@ class SessionRepository internal constructor(
         sessionSetDao.workingSetsOfExercise(exerciseId).lastOrNull()?.toDomain()
     }
 
+    // --- sesión guiada: cursor persistido (§4, GIM-11) ---------------------------
+
+    /**
+     * Cursor de la sesión abierta, tal como quedó guardado, como `Flow`.
+     *
+     * Emite `null` si no hay sesión `ACTIVE` o si su día ya no existe (rutina
+     * eliminada). **No aplica [Restore]**: el deadline vence solo y quién lo resuelve
+     * es [resumeActive] al abrir la app o [dispatch] con un `Tick`. Este Flow es para
+     * la pantalla que ya está viva (sigue el cursor cuando otra corrutina lo mueve).
+     */
+    fun observeGuided(): Flow<GuidedSession?> =
+        combine(
+            sessionDao.observeActive(),
+            sessionStateDao.observeActive(),
+            sessionSetDao.observeAll(),
+        ) { session, state, sets -> Triple(session, state, sets) }
+            .map { (session, state, sets) ->
+                val row = session ?: return@map null
+                withContext(io) {
+                    reconstruct(row, state, sets.filter { it.sessionId == row.id })
+                }
+            }
+
+    /**
+     * Rehidratación al abrir la app (§4): lee `session` + `session_state` + las series
+     * y aplica `Restore(now)` con la máquina de `:core`.
+     *
+     * - Sin sesión `ACTIVE` → [ActiveSession.None] ("sin sesión").
+     * - Descanso vigente → [ActiveSession.Resumable] con `remainingSeconds` calculado
+     *   desde `rest_ends_at` (deadline absoluto, no cuenta regresiva guardada).
+     * - Deadline vencido → [ActiveSession.Resumable] con `restFinished = true`, el
+     *   cursor intacto y el estado ya en `RUNNING` ("descanso terminado"). La escritura
+     *   del deadline limpio la hace [dispatch] por el efecto `PersistState`.
+     * - Sesión `ACTIVE` cuyo día ya no existe → [ActiveSession.MissingPlan].
+     */
+    suspend fun resumeActive(now: Instant = this.now()): ActiveSession = withContext(io) {
+        val row = sessionDao.active() ?: return@withContext ActiveSession.None
+        val persisted = reconstruct(row, sessionStateDao.get(row.id), sessionSetDao.ofSession(row.id))
+            ?: return@withContext ActiveSession.MissingPlan(row.id)
+        val transition = dispatch(persisted, Restore(now), now)
+        ActiveSession.Resumable(transition.state, transition.effects)
+    }
+
+    /**
+     * Aplica un evento de la máquina: `reduce` → persistir → devolver efectos.
+     *
+     * No reimplementa ninguna regla: el estado nuevo y los efectos salen de
+     * [reduce] (`:core`). Si la transición incluye [SessionEffect.PersistState],
+     * escribe el cursor y las series nuevas en la misma transacción lógica; el
+     * llamador ejecuta los efectos en el orden recibido (cronómetro, alarma,
+     * navegación). Un evento fuera de estado no escribe nada.
+     *
+     * @param state estado que tiene el llamador (normalmente el que devolvió el
+     *   `dispatch` anterior o [resumeActive]).
+     */
+    suspend fun dispatch(
+        state: GuidedSession,
+        event: SessionEvent,
+        now: Instant = this.now(),
+    ): SessionTransition = withContext(io) {
+        val transition = reduce(state, event)
+        if (SessionEffect.PersistState !in transition.effects) return@withContext transition
+        persistGuided(transition.state, now)
+        transition
+    }
+
+    /**
+     * Escribe el cursor de [state] como lo pide el efecto `PersistState`.
+     *
+     * Terminal (`FINISHED`/`ABANDONED`): cierra la fila de `session` y guarda el
+     * cursor final; así la próxima apertura no rehidrata una sesión terminada.
+     */
+    private suspend fun persistGuided(state: GuidedSession, now: Instant) {
+        if (state.sessionId.isBlank()) return
+        when (state.status) {
+            CoreStatus.NOT_STARTED -> return
+
+            CoreStatus.RUNNING, CoreStatus.RESTING -> {
+                ensureSessionRow(state)
+                persistNewSets(state)
+                writeCursor(state, now)
+            }
+
+            CoreStatus.FINISHED, CoreStatus.ABANDONED -> {
+                ensureSessionRow(state)
+                persistNewSets(state)
+                writeCursor(state, now)
+                sessionDao.close(
+                    state.sessionId,
+                    now.toEpochMilli(),
+                    if (state.status == CoreStatus.FINISHED) RowStatus.FINISHED else RowStatus.ABANDONED,
+                    null,
+                )
+            }
+        }
+    }
+
+    /**
+     * La fila de `session` puede no existir todavía: el llamador puede arrancar la
+     * máquina (`StartSession`) sin haber llamado a [start]. Se crea por el camino
+     * normal (`startSession`), así la regla de "una sola `ACTIVE`" sigue siendo la
+     * del DAO y no una segunda copia.
+     */
+    private suspend fun ensureSessionRow(state: GuidedSession) {
+        if (sessionDao.getById(state.sessionId) != null) return
+        val startedAt = state.startedAt ?: return
+        sessionDao.startSession(
+            SessionEntity(
+                id = state.sessionId,
+                routineId = routineDao.getDay(state.day.id)?.routineId,
+                routineDayId = state.day.id,
+                startedAt = startedAt.toEpochMilli(),
+                endedAt = null,
+                status = RowStatus.ACTIVE,
+                bodyWeightKg = null,
+            ),
+        )
+    }
+
+    /** Series del estado que todavía no están en la base (el id de la serie es determinístico). */
+    private suspend fun persistNewSets(state: GuidedSession) {
+        val stored = sessionSetDao.idsOfSession(state.sessionId).toHashSet()
+        val perItem = mutableMapOf<String, Int>()
+        state.sets.forEach { logged ->
+            val setIndex = perItem.getOrDefault(logged.itemId, 0)
+            perItem[logged.itemId] = setIndex + 1
+            val set = logged.set
+            val id = set.id.ifBlank { "${state.sessionId}/${logged.itemId}/$setIndex" }
+            if (id in stored) return@forEach
+            sessionSetDao.upsert(
+                SessionSetEntity(
+                    id = id,
+                    sessionId = state.sessionId,
+                    dayItemId = logged.itemId.ifBlank { null },
+                    exerciseId = set.exerciseId.ifBlank { null },
+                    roundIndex = logged.roundIndex,
+                    setIndex = setIndex,
+                    weightKg = set.weightKg,
+                    reps = set.reps,
+                    rpe = set.rpe,
+                    isDropSet = set.isDropSet,
+                    isWarmup = set.isWarmup,
+                    completedAt = Instants.toEpochMillis(set.completedAt, zone),
+                ),
+            )
+        }
+    }
+
+    /** El cursor de §2/§4: índices, deadline absoluto (epoch millis) y cuándo se guardó. */
+    private suspend fun writeCursor(state: GuidedSession, now: Instant) {
+        sessionStateDao.upsert(
+            SessionStateEntity(
+                sessionId = state.sessionId,
+                blockIndex = state.blockIndex,
+                roundIndex = state.roundIndex,
+                itemIndex = state.itemIndex,
+                restEndsAt = state.restEndsAt?.toEpochMilli(),
+                restSeconds = state.restSeconds,
+                updatedAt = now.toEpochMilli(),
+            ),
+        )
+    }
+
+    /**
+     * Arma [GuidedSession] desde la base. `session_state` sólo guarda el cursor, así
+     * que el plan sale de `routine_day`/`day_item` y las series de `session_set`.
+     *
+     * `status`: `RESTING` si hay deadline guardado, `RUNNING` si no. No se guarda un
+     * `status` aparte a propósito: el deadline es el único dato que decide si el
+     * descanso sigue vivo (una cuenta regresiva persistida quedaría vieja).
+     *
+     * @return `null` si el día ya no existe o la sesión no tiene `routine_day_id`.
+     */
+    private suspend fun reconstruct(
+        session: SessionEntity,
+        state: SessionStateEntity?,
+        sets: List<SessionSetEntity>,
+    ): GuidedSession? {
+        val dayId = session.routineDayId ?: return null
+        val day = routines.day(dayId) ?: return null
+        // Bloque de cada ítem, con la misma regla de superseries que `dayStats` (`:core`).
+        val blockOfItem = groups(day.items)
+            .flatMapIndexed { blockIndex, block -> block.map { item -> item.id to blockIndex } }
+            .toMap()
+        return GuidedSession(
+            day = day,
+            sessionId = session.id,
+            status = if (state?.restEndsAt != null) CoreStatus.RESTING else CoreStatus.RUNNING,
+            startedAt = Instant.ofEpochMilli(session.startedAt),
+            blockIndex = state?.blockIndex ?: 0,
+            roundIndex = state?.roundIndex ?: 0,
+            itemIndex = state?.itemIndex ?: 0,
+            restEndsAt = state?.restEndsAt?.let { Instant.ofEpochMilli(it) },
+            restSeconds = state?.restSeconds,
+            sets = sets.map { row ->
+                // Un ítem borrado deja `day_item_id` NULL: la serie se conserva
+                // (volumen/PR del histórico) pero no participa del cursor.
+                LoggedSet(
+                    itemId = row.dayItemId.orEmpty(),
+                    blockIndex = row.dayItemId?.let { blockOfItem[it] } ?: 0,
+                    roundIndex = row.roundIndex,
+                    set = row.toDomain(),
+                )
+            },
+        )
+    }
+
     private fun SessionEntity.toDomain(sets: List<SessionSetEntity>): Session = Session(
         id = id,
         startedAt = Instants.fromEpochMillis(startedAt, zone),
@@ -154,4 +389,44 @@ class SessionRepository internal constructor(
         isWarmup = isWarmup,
         isDropSet = isDropSet,
     )
+}
+
+/**
+ * Qué hay que mostrar al abrir la app (§4 "nada se pierde si la app estaba cerrada").
+ *
+ * Lo devuelve [SessionRepository.resumeActive] ya pasado por `Restore`: el
+ * repositorio no decide si el descanso terminó, eso lo dice la máquina con sus
+ * efectos.
+ */
+sealed interface ActiveSession {
+
+    /** No hay sesión `ACTIVE`: la app abre en "sin sesión". */
+    data object None : ActiveSession
+
+    /**
+     * Hay sesión abierta y el plan se pudo reconstruir.
+     *
+     * @param state cursor restaurado (bloque, ronda, ítem, deadline y series).
+     * @param effects efectos de `Restore` en orden; el llamador los ejecuta.
+     */
+    data class Resumable(
+        val state: GuidedSession,
+        val effects: List<SessionEffect> = emptyList(),
+    ) : ActiveSession {
+
+        /**
+         * Segundos que le quedan al descanso, **calculados desde el deadline** por la
+         * máquina (`Restore` devuelve `StartRest(lo que falta)`), o `null` si no hay
+         * descanso vivo.
+         */
+        val remainingSeconds: Int?
+            get() = effects.filterIsInstance<SessionEffect.StartRest>().firstOrNull()?.seconds
+
+        /** `true` si el deadline venció mientras el proceso estaba muerto ("descanso terminado"). */
+        val restFinished: Boolean
+            get() = SessionEffect.ShowRestDone in effects
+    }
+
+    /** Sesión `ACTIVE` sin día (rutina eliminada): no hay nada que guiar, sólo descartarla. */
+    data class MissingPlan(val sessionId: String) : ActiveSession
 }

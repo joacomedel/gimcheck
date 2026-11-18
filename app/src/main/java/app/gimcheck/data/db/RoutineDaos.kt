@@ -27,6 +27,10 @@ internal interface RoutineDao {
     @Query("SELECT * FROM routine_day WHERE routine_id = :routineId ORDER BY position, name")
     suspend fun daysOf(routineId: String): List<RoutineDayEntity>
 
+    /** Un día por id: la sesión guarda `routine_day_id` y necesita el plan al rehidratar (GIM-11). */
+    @Query("SELECT * FROM routine_day WHERE id = :id")
+    suspend fun getDay(id: String): RoutineDayEntity?
+
     @Query("SELECT COALESCE(MAX(position), -1) FROM routine_day WHERE routine_id = :routineId")
     suspend fun maxDayPosition(routineId: String): Int
 

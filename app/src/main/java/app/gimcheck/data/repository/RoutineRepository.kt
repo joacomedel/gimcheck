@@ -74,6 +74,16 @@ class RoutineRepository internal constructor(
     }
 
     /**
+     * Un día con sus ítems, o `null` si ya no existe (rutina borrada, §2). Es lo que
+     * necesita la rehidratación de la sesión guiada (GIM-11): el cursor sólo significa
+     * algo junto al plan que lo generó.
+     */
+    suspend fun day(dayId: String): RoutineDay? = withContext(io) {
+        val row = routineDao.getDay(dayId) ?: return@withContext null
+        row.toDomain(items(dayId))
+    }
+
+    /**
      * Crea o reemplaza un plan con sus días e ítems, en tres transacciones (plan+días,
      * y los ítems de cada día). Los ids que vienen del dominio se respetan: un plan
      * importado de la web conserva los suyos.
