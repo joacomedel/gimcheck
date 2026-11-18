@@ -40,9 +40,10 @@ class MainActivitySkeletonTest {
 
     @Test
     fun `MainActivity declara onCreate con el Bundle del ciclo de vida`() {
-        // getMethod (y no getDeclaredMethod) resuelve sólo métodos públicos: si
-        // esto no lanza NoSuchMethodException, onCreate existe y es público.
-        val onCreate = activityClass.getMethod("onCreate", Bundle::class.java)
+        // getDeclaredMethod y no getMethod: el jar que AGP entrega al test JVM
+        // (`runtime_app_classes_jar`) marca onCreate como protected, aunque en el
+        // APK es public. getMethod lo busca público y lanza NoSuchMethodException.
+        val onCreate = activityClass.getDeclaredMethod("onCreate", Bundle::class.java)
         assertNotNull(onCreate)
         assertEquals(activityClass, onCreate.declaringClass)
     }
