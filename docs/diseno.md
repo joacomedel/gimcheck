@@ -42,8 +42,9 @@ Un solo archivo de tokens: `ui/theme/Tokens.kt` (a crear). Nada de colores liter
 | `line` | `#D9D8D1` | `#34332F` | bordes de 1 dp, separadores |
 | `ink` | `#0B0B0B` | `#F0EFEC` | texto principal, números |
 | `ink2` | `#52514E` | `#C3C2B7` | texto secundario |
-| `muted` | `#7A7974` | `#8F8E86` | metadatos, ejes de gráfico, placeholders |
-| `accent` | `#2A78D6` | `#3987E5` | **único** acento: acción primaria, selección, serie principal de un gráfico |
+| `muted` | `#706F6A` | `#8F8E86` | metadatos, ejes de gráfico, placeholders |
+| `accent` | `#2770C7` | `#3987E5` | **único** acento: acción primaria, selección, serie principal de un gráfico |
+| `onAccent` | `#FFFFFF` | `#121211` | texto **sobre** un relleno `accent` (label del botón primario) |
 | `good` | `#0A7A3D` | `#4CC27F` | "en rango", PR nuevo, descanso listo |
 | `warn` | `#A35F00` | `#E0A03A` | fuera de rango, advertencia de superserie |
 | `bad` | `#C0302E` | `#EC7A78` | conflicto, eliminar, sesión abandonada |
@@ -59,6 +60,31 @@ Reglas de uso:
   conflicto de superserie, error. Nunca como decoración de sección.
 - Modo oscuro primero (el gimnasio es de noche y con luz baja); el claro es la variante.
   `theme` en Ajustes: `SYSTEM` (default) / `LIGHT` / `DARK`.
+
+**Contraste medido** (WCAG 2.1, texto sobre esos fondos; la tabla la verifica
+`TokensContractTest`):
+
+| Par | Claro | Oscuro | Mínimo |
+|---|---|---|---|
+| `ink` / `surface` | 19,2:1 | 15,2:1 | 4,5 (AA) |
+| `ink` / `bg` | 17,9:1 | 16,3:1 | 4,5 |
+| `ink` / `surface2` | 16,6:1 | 13,2:1 | 4,5 |
+| `ink2` / `surface` | 7,7:1 | 9,7:1 | 4,5 |
+| `muted` / `surface` | 4,9:1 | 5,3:1 | 4,5 |
+| `muted` / `bg` | 4,6:1 | 5,7:1 | 4,5 |
+| `accent` / `surface` | 4,8:1 | 4,8:1 | 4,5 |
+| `accent` / `bg` | 4,5:1 | 5,2:1 | 4,5 |
+| `onAccent` / `accent` | 5,0:1 | 5,2:1 | 4,5 |
+| `good` / `surface` | 5,3:1 | 7,7:1 | 4,5 |
+| `warn` / `surface` | 4,9:1 | 7,7:1 | 4,5 |
+| `bad` / `surface` | 5,5:1 | 6,3:1 | 4,5 |
+
+Dos valores del contrato original no llegaban al mínimo como **texto** y se corrigieron
+acá (GIM-12), no en el requisito: `muted` claro `#7A7974` daba 4,25:1 sobre `surface`
+(es el color de los metadatos de 12–13 sp) y `accent` claro `#2A78D6` daba 4,30:1 como
+texto de acción y 4,42:1 con label blanco encima. Los reemplazos son del mismo tono, un
+8 % más oscuros, y ningún par baja de 4,5:1. `line` queda afuera de la tabla: es un borde
+de 1 dp, no texto.
 
 ### 3.2 Espaciado, radios y alturas
 
@@ -80,7 +106,8 @@ Grilla de 4:
 
 ## 4. Tipografía
 
-Dos familias, empaquetadas en `res/font` (**no** Google Fonts en runtime; la app no tiene red):
+Dos familias, empaquetadas en `res/font` (**no** Google Fonts en runtime; la app no tiene red).
+Archivos, pesos y licencia OFL: [`fuentes.md`](fuentes.md).
 
 | Familia | Pesos | Dónde |
 |---|---|---|
@@ -103,6 +130,12 @@ Escala:
 Números: `fontFeatureSettings = "tnum"` (cifras tabulares) y alineados a la derecha en tablas.
 `letterSpacing 0` en Barlow. Separador decimal **coma** (`82,5 kg`, `1.240 kg`) y `1:30` para
 tiempo; sin ceros de relleno (`82,5`, no `82,50`).
+
+Los estilos viven en `ui/theme/GimTypography.kt` (`GimText.display`, `GimText.stat`, …). El
+label de un botón —rol que esta tabla no fija— es **15 sp IBM Plex 600**: 12 sp en un botón
+de 52 dp se ve chico. Los 15 roles de `MaterialTheme.typography` se llenan a propósito con
+esos estilos: un rol sin asignar cae a Roboto y una app de dos familias con un `AlertDialog`
+en Roboto se nota.
 
 ## 5. Componentes
 
@@ -199,12 +232,19 @@ Errores: texto en `bad` + "Reintentar". Nunca un `Toast` como única señal.
 - `keepScreenOn` en Entrenar, según `keepScreenOn` de Ajustes (default `true`).
 - Edge-to-edge con `WindowInsets.safeDrawing`; la barra inferior respeta el gesto del sistema.
 - Texto escalable: nada de alturas fijas que corten a 200 % de `fontScale`; las filas crecen.
+- El tema entero está en `ui/theme/`: `Tokens.kt` (paleta, espaciado, radios, alturas),
+  `GimTypography.kt` (las dos familias y la escala) y `GimCheckTheme.kt` (light/dark/system
+  y la proyección a Material 3). Un color nuevo se agrega en `Tokens.kt`, nunca en una
+  pantalla.
 
 ## 11. Verificación (no hay emulador acá)
 
 - En este equipo **no se puede previsualizar**: no hay SDK de Android ni `aapt2` arm64 (ver
   [`build.md`](build.md)). El gate real de una pantalla es `./gradlew :app:assembleDebug` en CI +
   `lint` + los tests de `:core`.
+- El contrato de §3 y §4 tiene test propio y corre en cada push: `:app:testDebugUnitTest` →
+  `TokensContractTest` (valores de la tabla, contraste WCAG de todo par de texto, escala
+  tipográfica, cifras tabulares y que los 15 roles de Material 3 estén mapeados).
 - Screenshot de UI con Robolectric es opcional (`captureToImage`), nunca gate de merge.
 - La verificación visual la hace el dueño instalando el APK. Cada ticket de UI lista **3 bullets
   de qué mirar** en el teléfono (ej.: "la cuenta regresiva no salta", "el botón no lo tapa el

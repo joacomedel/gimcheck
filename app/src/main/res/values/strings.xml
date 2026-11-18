@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">GimCheck</string>
+    <!-- Cartel del esqueleto: lo reemplaza el NavHost de GIM-13. -->
+    <string name="ui_arranque_pendiente">Las pantallas llegan con la navegación.</string>
 </resources>

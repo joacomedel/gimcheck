@@ -2,31 +2,50 @@ package app.gimcheck
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import app.gimcheck.data.settings.AppSettings
+import app.gimcheck.ui.GimCheckRoot
+import app.gimcheck.ui.theme.GimCheckTheme
+import app.gimcheck.ui.theme.isDark
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val container = GimCheckApp.container(application)
         // Primer arranque sin datos: el seed de assets/seed.json se carga en segundo
         // plano (idempotente; ver SeedImporter). Se dispara desde acá y no desde
         // Application para que los tests JVM no toquen disco al construir el grafo.
-        GimCheckApp.container(application).seedIfEmptyAsync()
+        container.seedIfEmptyAsync()
+
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    Text(
-                        text = "GimCheck",
-                        modifier = Modifier.padding(24.dp),
-                        style = MaterialTheme.typography.headlineMedium,
-                    )
-                }
+            // `theme` es de §8 y vive en Room (SettingsRepository): el Flow vuelve a
+            // emitir al cambiar el ajuste, este `collectAsState` recompone y
+            // `GimCheckTheme` repinta sin recrear la activity.
+            val settings by container.settings.settings.collectAsState(initial = AppSettings.DEFAULT)
+            val dark = settings.theme.isDark(isSystemInDarkTheme())
+
+            // Edge-to-edge con las barras transparentes (§10). Los íconos de las barras
+            // siguen al tema **de la app**, no al del sistema: con el ajuste en LIGHT
+            // sobre un teléfono en oscuro, íconos claros sobre fondo claro serían
+            // invisibles. `SystemBarStyle.auto` recibe el detector justamente para eso.
+            LaunchedEffect(dark) {
+                val style = SystemBarStyle.auto(
+                    android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT,
+                ) { _ -> dark }
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+            }
+
+            GimCheckTheme(mode = settings.theme) {
+                GimCheckRoot()
             }
         }
     }

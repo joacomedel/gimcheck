@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Espejo de `ui/theme/Tokens.kt` para lo único que se pinta ANTES de que Compose
+      dibuje: el fondo de la ventana (el "flash" del arranque frío). No se usa en
+      pantallas: ahí manda GimColors. Si cambia `bg` en Tokens.kt, cambia acá y en
+      values-night/colors.xml.
+    -->
+    <color name="gim_bg">#F4F4F1</color>
+</resources>

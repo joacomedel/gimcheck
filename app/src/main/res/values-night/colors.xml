@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- `bg` del modo oscuro. Ver values/colors.xml. -->
+    <color name="gim_bg">#121211</color>
+</resources>

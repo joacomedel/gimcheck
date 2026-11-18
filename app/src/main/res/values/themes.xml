@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Tema de plataforma mínimo: el estilo real lo pone Material 3 en Compose. -->
-    <style name="Theme.GimCheck" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+      Tema de plataforma mínimo: el estilo real lo pone Material 3 en Compose
+      (`GimCheckTheme`). Solo se declara lo que el sistema usa antes del primer frame:
+      fondo de ventana y barras transparentes para el edge-to-edge (§10).
+    -->
+    <style name="Theme.GimCheck" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/gim_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
 </resources>
