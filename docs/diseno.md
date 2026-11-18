@@ -140,8 +140,9 @@ en material3 1.4.0 esos roles devuelven `null` en la JVM (§11).
 
 ## 5. Componentes
 
-Una sola implementación de cada uno, en `ui/components/` (a crear). Si una pantalla necesita algo
-distinto, se agrega acá y se reusa; no se copia el layout.
+Una sola implementación de cada uno, en `ui/components/` (creados en GIM-13; cada archivo lleva un
+`@Preview` que documenta la pieza aunque no se pueda renderizar acá, §11). Si una pantalla necesita
+algo distinto, se agrega acá y se reusa; no se copia el layout.
 
 | Componente | Firma mínima | Notas |
 |---|---|---|
@@ -192,8 +193,10 @@ Motor de escalas compartido en `ui/chart/ChartScales.kt` (a crear): dominio→p�
 
 ## 8. Las 9 pantallas
 
-Ninguna existe todavía en el código (todas "sin empezar": el `MainActivity` actual pinta un texto).
-Esta tabla es el contrato que ejecutan GIM-12..GIM-15.
+Las nueve existen como **placeholder navegable** desde GIM-13 (`ui/screens/`, un archivo por
+pantalla, con la estructura de §7 y el copy de qué va en cada una); el contenido real lo ponen
+GIM-15..GIM-21, que reemplazan el placeholder de su pantalla. El grafo vive en
+`ui/nav/GimNavHost.kt` y la lista de rutas en `ui/nav/GimDestination.kt`.
 
 | # | Pantalla | Jerarquía visual (arriba → abajo) | Componentes | Acción primaria |
 |---|---|---|---|---|
@@ -247,6 +250,11 @@ Errores: texto en `bad` + "Reintentar". Nunca un `Toast` como única señal.
   `TokensContractTest` (valores de la tabla, contraste WCAG de todo par de texto, escala
   tipográfica, cifras tabulares y que los 15 roles de Material 3 salgan de `GimText` con la
   familia, el peso y el `tnum` del contrato).
+- El contrato de §5 y §9 también tiene gate en `:app:testDebugUnitTest`, sin render:
+  `ComponentContractTest` (cada componente existe con la firma de la tabla y las alturas de
+  `GimHeight` son las de §3.2), `EmptyStateCopyTest` (los seis pares de §9 carácter por carácter)
+  y `UiSourceContractTest` (ningún `Color(0x…)` fuera de `ui/theme/`, las nueve rutas declaradas en
+  el `NavHost` y el botón primario usando `GimHeight.button`).
 - Los roles de `Typography` **no** se leen de vuelta: en material3 1.4.0 (BOM 2026.09.00)
   `displayLarge`, `bodyLarge`, … devuelven `null` en la JVM por la ruta del constructor de 15
   argumentos, aunque el tema funcione en el APK. Por eso el gate es sobre `GimText` (la fuente

@@ -80,6 +80,11 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
 
+    // Navegación de las nueve pantallas de §8 (GIM-13). Rutas por String, no
+    // type-safe: el grafo no tiene argumentos y la lista de destinos vive en un enum
+    // (`ui/nav/GimDestination.kt`) que el test puede leer sin serialización.
+    implementation(libs.androidx.navigation.compose)
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)

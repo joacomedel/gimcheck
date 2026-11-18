@@ -1,6 +1,92 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">GimCheck</string>
-    <!-- Cartel del esqueleto: lo reemplaza el NavHost de GIM-13. -->
-    <string name="ui_arranque_pendiente">Las pantallas llegan con la navegación.</string>
+
+    <!--
+      Navegación — docs/diseno.md §7.7 y §12: nombres de pantalla tal como están en la
+      tabla de §8, sentence case, voseo. "Descanso terminado" es el título de la pantalla
+      completa, no un label de barra.
+    -->
+    <string name="nav_hoy">Hoy</string>
+    <string name="nav_rutinas">Rutinas</string>
+    <string name="nav_progreso">Progreso</string>
+    <string name="nav_historial">Historial</string>
+    <string name="nav_ajustes">Ajustes</string>
+    <string name="nav_entrenar">Entrenar</string>
+    <string name="nav_descanso">Descanso terminado</string>
+    <string name="nav_ejercicios">Ejercicios</string>
+    <string name="nav_comparar">Comparar</string>
+
+    <!--
+      Estados vacíos — docs/diseno.md §9, copy EXACTO (frase + acción). Los verifica
+      EmptyStateCopyTest carácter por carácter: si el contrato cambia, el test falla y
+      obliga a tocar los dos lados.
+    -->
+    <!--
+      El par de Hoy todavía no lo pinta ninguna pantalla (el placeholder de Hoy muestra los
+      tiles): lo consume el estado vacío de GIM-20 y lo fija EmptyStateCopyTest. Se ignoran acá
+      para que lint no lo reporte como recurso sin usar.
+    -->
+    <string name="empty_hoy_text" tools:ignore="UnusedResources">Todavía no hay rutinas.</string>
+    <string name="empty_hoy_action" tools:ignore="UnusedResources">Crear rutina</string>
+    <string name="empty_rutinas_text">Este día no tiene ejercicios.</string>
+    <string name="empty_rutinas_action">Agregar ejercicio</string>
+    <string name="empty_ejercicios_text">No hay ejercicios con ese músculo.</string>
+    <string name="empty_ejercicios_action">Limpiar filtro</string>
+    <string name="empty_progreso_text">Sin datos todavía. Anotá una sesión.</string>
+    <string name="empty_progreso_action">Ir a Hoy</string>
+    <string name="empty_historial_text">No hay sesiones anotadas.</string>
+    <string name="empty_historial_action">Empezar sesión</string>
+    <string name="empty_comparar_text">Necesitás dos rutinas para comparar.</string>
+    <string name="empty_comparar_action">Crear rutina</string>
+
+    <!-- Acciones y labels de componentes (§5, §12: verbo al frente, voseo). -->
+    <string name="accion_empezar_sesion">Empezar sesión</string>
+    <string name="accion_serie_hecha">Serie hecha</string>
+    <string name="accion_empezar">Empezar</string>
+    <string name="accion_salir">Salir</string>
+    <string name="accion_confirmar">Confirmar</string>
+    <string name="accion_cancelar">Cancelar</string>
+    <string name="accion_bajar">Bajar</string>
+    <string name="accion_subir">Subir</string>
+
+    <!--
+      Copy de los placeholders de GIM-13 (navegación). Es texto real, no "lorem": dice
+      qué va en esa pantalla. Cada ticket de pantalla (GIM-15..GIM-21) lo reemplaza por
+      el copy definitivo de su pantalla.
+    -->
+    <string name="ph_hoy">Rutina y día elegidos, duración y series del día.</string>
+    <string name="ph_entrenar">Bloque actual, peso, reps y descanso.</string>
+    <string name="ph_descanso">Próximo ejercicio y ronda.</string>
+    <string name="ph_descanso_titulo">Descansá hasta acá</string>
+    <string name="ph_rutinas">Planes, días e ítems del día.</string>
+    <string name="ph_ejercicios">Buscador, filtro por músculo y ficha.</string>
+    <string name="ph_progreso">PR, volumen, peso y músculos.</string>
+    <string name="ph_historial">Sesiones por semana ISO.</string>
+    <string name="ph_comparar">Dos planes, lado a lado.</string>
+    <string name="ph_ajustes">Entrenamiento, alertas, datos y apariencia.</string>
+
+    <string name="ph_duracion">Duración</string>
+    <string name="ph_series">Series</string>
+    <string name="ph_sin_dato">—</string>
+    <string name="ph_peso_corporal">Peso corporal (kg)</string>
+    <string name="ph_peso_serie">Peso (kg)</string>
+    <string name="ph_reps">Reps</string>
+    <string name="ph_confirmar_salida">¿Terminar la sesión y salir?</string>
+    <string name="ph_plan_full_body">Full body</string>
+    <string name="ph_plan_torso_pierna">Torso / pierna</string>
+    <string name="ph_dia_a">Día A</string>
+    <string name="ph_musculo_pecho">Pecho</string>
+    <string name="ph_musculo_espalda">Espalda</string>
+    <string name="ph_musculo_piernas">Piernas</string>
+    <string name="ph_rango_3m">3 M</string>
+    <string name="ph_rango_6m">6 M</string>
+    <string name="ph_rango_1a">1 A</string>
+    <string name="ph_series_por_musculo">Series por músculo</string>
+    <string name="ph_seccion_entrenamiento">Entrenamiento</string>
+    <string name="ph_seccion_apariencia">Apariencia</string>
+    <string name="ph_descanso_series">Descanso entre series (s)</string>
+    <string name="ph_tema_sistema">Sistema</string>
+    <string name="ph_tema_claro">Claro</string>
+    <string name="ph_tema_oscuro">Oscuro</string>
 </resources>
