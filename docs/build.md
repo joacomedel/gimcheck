@@ -284,16 +284,21 @@ con la prueba de rojo y verde hecha en `master`:
 
 | Run | Commit | Resultado | Qué pasó |
 |---|---|---|---|
+| [44229165259](https://github.com/joacomedel/gimcheck/actions/runs/44229165259) | `997d591` | **verde**, 2 m 25 s | ejecutó `:app:testDebugUnitTest` de verdad: **3 tests, 0 fallos** en 18 s. El total se estiró porque `setup-android` tardó 60 s en esa instancia del runner |
 | [44229535632](https://github.com/joacomedel/gimcheck/actions/runs/44229535632) | `ed9b9b2` (temporal) | **rojo**, 58 s | `RojoTemporalTest > rojo FAILED` (`AssertionError`): el job corta en el paso *Tests unitarios de :app*, `:app:lintDebug` y `:app:assembleDebug` quedan **skipped** y se sube `gimcheck-test-reports` |
-| [44229838339](https://github.com/joacomedel/gimcheck/actions/runs/44229838339) | `13e9aa7` (revert) | **verde**, 1 m 2 s | los 3 tests de `MainActivitySkeletonTest` pasan y el APK se publica igual que antes |
+| [44229838339](https://github.com/joacomedel/gimcheck/actions/runs/44229838339) | `13e9aa7` (revert) | **verde**, 1 m 2 s | el revert deja el árbol igual al de `997d591`, así que Gradle resuelve la tarea `FROM-CACHE` (no re-ejecuta) y publica el APK igual que antes |
+| [44230183427](https://github.com/joacomedel/gimcheck/actions/runs/44230183427) | `e7c6a7c` | **verde**, 1 m 1 s | total de referencia con este documento: `:core:test` 18 s, `:app:testDebugUnitTest` 5 s (`FROM-CACHE`), lint 16 s, APK 3 s |
 
-El commit rojo **no quedó en `master`**: se revirtió con `git revert` (el revert
-es el `13e9aa7`). Costo del paso nuevo medido en el run verde
-[44229165259](https://github.com/joacomedel/gimcheck/actions/runs/44229165259):
-`:app:testDebugUnitTest` tarda **18 s** (compila `:app` + los tests y los corre);
-ese run tardó 2 m 25 s sólo porque `setup-android` consumió 60 s en esa instancia
-del runner. El total del run se mantiene en **54 s – 1 m 2 s** con caché caliente,
-contra ~50 s antes de GIM-35: el paso nuevo agrega del orden de **10–18 s**.
+El commit rojo **no quedó en `master`**: se revirtió con `git revert` (`13e9aa7`).
+Ojo con la caché: `gradle/actions/setup-gradle` cachea los resultados de tareas,
+así que un run que no cambia las entradas de `:app` muestra
+`:app:testDebugUnitTest FROM-CACHE` en vez de re-ejecutar los tests. Eso no es un
+hueco —la clave de caché incluye fuentes, classpath y versión—, pero al citar
+evidencia hay que usar un run que **ejecutó** la tarea (como el `997d591`), no uno
+que la sacó de caché. Costo del paso nuevo medido en el primer run: **18 s**
+(compila `:app` + los tests y los corre). El total del run queda en **54 s – 1 m 2 s**
+con caché caliente, contra ~50 s antes de GIM-35: el paso agrega del orden de
+**10–18 s**, muy por debajo de los ~4 minutos que habrían hecho falta mirar.
 
 Detalle que muerde al escribir tests de `:app`: el jar que AGP entrega al test
 JVM (`app/build/intermediates/runtime_app_classes_jar/...`) marca `onCreate`
