@@ -98,6 +98,9 @@ data class RoutineDay(
  * @param optMin rango de referencia semanal, mínimo.
  * @param optMax rango de referencia semanal, máximo.
  * @param includeIndirect si el estado y los totales usan directas + indirectas.
+ * @param e1rmFormula fórmula del PR estimado (`e1rmFormula` de los ajustes, §3.1).
+ * @param bodyweightVolume si el volumen de las series de peso corporal incluye el
+ *   peso corporal del día además del lastre (`bodyweightVolume`, §3.2).
  */
 data class Settings(
     val warm: Int = 5,
@@ -108,6 +111,8 @@ data class Settings(
     val optMin: Int = 10,
     val optMax: Int = 20,
     val includeIndirect: Boolean = false,
+    val e1rmFormula: E1rmFormula = E1rmFormula.EPLEY,
+    val bodyweightVolume: Boolean = false,
 ) {
     companion object {
         /** Los ajustes del seed de la web (`seed()` líneas 146-160 del HTML). */
