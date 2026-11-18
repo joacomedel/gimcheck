@@ -170,13 +170,20 @@ SET_LOGGED(weight, reps)
   si item_index < bloque.size-1:
       item_index++                       → pantalla del siguiente de la superserie, SIN descanso
   si no:
+      descansoRonda = max(rest de los ítems que participan en esta ronda)
       si round_index+1 < rondas:
-          item_index = 0 ; round_index++  ; EMPIEZA_DESCANSO(max(rest de los miembros))
+          item_index = 0 ; round_index++  ; EMPIEZA_DESCANSO(descansoRonda)
       si no:
-          bloque terminado
-          si hay bloque siguiente:        ; EMPIEZA_DESCANSO(max(rest del bloque))
+          bloque terminado                ; el descanso es el de la última ronda cerrada
+          si hay bloque siguiente:        ; EMPIEZA_DESCANSO(descansoRonda)
               block_index++ ; round = 0 ; item = 0
           si no:                          → FIN_DE_SESION
+
+  "participa en esta ronda" = item.sets > round_index (la misma regla que `dayStats`);
+  nunca es el máximo de todo el bloque. Ej.: A = 3 series / 90 s y B = 2 series / 120 s:
+  la ronda 1 descansa 120 (participan A y B) y la ronda 3, que cierra el bloque con A
+  solo, descansa 90. Con un bloque siguiente, ese descanso de la última ronda es el
+  que se usa para pasar al bloque nuevo.
 
 EMPEZA_DESCANSO(segundos)
   rest_ends_at = now + segundos (o rest_override_seconds del ítem si existe)

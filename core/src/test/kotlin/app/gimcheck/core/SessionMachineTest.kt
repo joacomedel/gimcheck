@@ -193,6 +193,55 @@ class SessionMachineTest {
         assertEquals(listOf(3, 2), state.blocks.single().map { it.sets })
     }
 
+    @Test
+    fun `el descanso de la ronda es el de sus participantes y no el del bloque entero`() {
+        // Fixture que discrimina: A = 3 series / 90 s, B = 2 series / 120 s, más un bloque
+        // siguiente. El máximo de todo el bloque es 120; el de los participantes de la
+        // última ronda es 90. Una implementación que tome `max(rest del bloque)` acierta
+        // las rondas 1 y 2 y falla al cerrar el bloque, que es justo el descanso que se usa
+        // para pasar al bloque siguiente.
+        val a = dayItem("a", sets = 3, exerciseRest = 90, supersetNext = true)
+        val b = dayItem("b", sets = 2, exerciseRest = 120)
+        val c = dayItem("c", sets = 1, exerciseRest = 150)
+
+        var state = session(a, b, c).start().state
+        assertEquals(2, state.blocks.size)
+
+        state = state.log().state // a ronda 0 → cursor en b, sin descanso
+        val round1 = state.log() // b cierra la ronda 0: participan A y B
+        assertRest(round1, 120) // max(90, 120)
+        assertCursor(round1, 0, 1, 0)
+        state = round1.state
+
+        state = state.log().state // a ronda 1
+        val round2 = state.log() // b cierra la ronda 1: B (2 series) todavía participa
+        assertRest(round2, 120)
+        assertCursor(round2, 0, 2, 0)
+        state = round2.state
+
+        // Ronda 2 (índice 2): sólo A participa, B ya cumplió sus 2 series. Acá se discrimina.
+        val blockClose = state.log()
+        assertEquals(90, blockClose.state.restSeconds)
+        assertRest(blockClose, 90)
+        assertCursor(blockClose, 1, 0, 0) // el bloque siguiente arranca después de ese descanso
+        assertEquals(
+            listOf<SessionEffect>(PersistState, ShowNextExercise, StartRest(90)),
+            blockClose.effects,
+        )
+        assertEquals(5, blockClose.state.sets.size) // 3 + 2: B no tiene ronda extra
+
+        // Misma regla en el borde literal: B con una sola serie deja de participar en la
+        // ronda 2, así que la ronda 1 descansa 120 y la ronda 2 descansa 90.
+        val short = dayItem("b", sets = 1, exerciseRest = 120)
+        var other = session(a, short, c).start().state
+        other = other.log().state // a ronda 0
+        val firstRound = other.log() // b cierra la ronda 0 con A y B → 120
+        assertRest(firstRound, 120)
+        val secondRound = firstRound.state.log() // a cierra la ronda 1 solo → 90
+        assertRest(secondRound, 90)
+        assertCursor(secondRound, 0, 2, 0)
+    }
+
     // --- 3. dos bloques seguidos --------------------------------------------
 
     @Test
