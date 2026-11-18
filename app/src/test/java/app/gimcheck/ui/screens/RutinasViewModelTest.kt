@@ -118,7 +118,12 @@ class RutinasViewModelTest {
 
         viewModel.createPlan()
 
-        val state = withTimeout(5_000) { viewModel.state.first { it.plans.size == 2 } }
+        // El plan y el puntero del activo son dos escrituras: hay una emisión intermedia
+        // con los dos planes y el activo todavía apuntando al viejo. Se espera la que ya
+        // tiene las dos cosas, que es el estado que ve el usuario.
+        val state = withTimeout(5_000) {
+            viewModel.state.first { it.plans.size == 2 && it.plans.any { plan -> plan.active && plan.daysCount == 0 } }
+        }
         val created = state.plans.first { it.daysCount == 0 }
         assertTrue("el plan nuevo queda activo", created.active)
         assertEquals(created.id, state.selectedPlanId)
@@ -138,7 +143,11 @@ class RutinasViewModelTest {
 
         viewModel.duplicatePlan(originalId)
 
-        val state = withTimeout(5_000) { viewModel.state.first { it.plans.size == 2 } }
+        // Igual que en crear: la copia existe en la lista antes de que el ViewModel la
+        // seleccione (dos emisiones). Se espera la que ya la tiene seleccionada.
+        val state = withTimeout(5_000) {
+            viewModel.state.first { it.plans.size == 2 && it.selectedPlanId != originalId }
+        }
         val copy = state.plans.first { it.id != originalId }
         assertEquals(copy.id, state.selectedPlanId)
         assertEquals(original.days.size, copy.daysCount)
