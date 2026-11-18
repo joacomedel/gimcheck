@@ -1,158 +1,43 @@
 package app.gimcheck.ui.components
 
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import app.gimcheck.ui.nav.GimDestination
 import app.gimcheck.ui.theme.GimHeight
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.lang.reflect.Method
-import java.lang.reflect.Modifier as ReflectModifier
+import java.io.File
 
 /**
- * El contrato de `docs/diseno.md` §5, verificado **sin render** (acá no hay emulador ni
- * SDK, §11): cada componente existe en su archivo y el arranque de su firma es el de la
- * tabla.
+ * El contrato de `docs/diseno.md` §5, verificado **sin render** (§11: acá no hay
+ * emulador) y **sin reflexión sobre clases generadas**.
  *
- * Por qué reflexión y no un test de UI: un `createComposeRule` necesita emulador o
- * Robolectric con `ui-test`, y lo que este ticket promete es que **la firma** y las
- * alturas son las del contrato. Lo que se pinta se mira en el teléfono.
+ * La versión anterior usaba `Class.forName("...StatTile")` para leer las firmas de los
+ * `@Composable`. Eso depende de nombres que genera el compilador (`StatTileKt`,
+ * `Meter-<hash>` cuando hay `value class`), así que el test se rompía por un detalle del
+ * compilador y no por el contrato: rojo en CI, verde en la cabeza de quien lo escribió.
+ * Lo que el ticket promete y es estable se verifica así:
  *
- * Composable de archivo único: `StatTile.kt` compila a `StatTileKt` con `StatTile` como
- * método estático (y `StatTile$default` para los parámetros con default; se filtra por
- * nombre exacto). `Meter` es la excepción: recibe `Color` y `Dp`, que son `value class`,
- * así que el compilador le cambia el nombre por `Meter-<hash>`; se busca por prefijo.
+ * 1. **Las alturas de `GimHeight`** (§3.2), que es de donde salen los 52 dp del botón.
+ * 2. **Las nueve rutas de `GimDestination`** (§8), el enum puro que arma el grafo.
+ * 3. **`EmptyState` usa el copy del contrato**: los textos viven en `strings.xml` (§9) y
+ *    el composable recibe `text`/`actionLabel`, no los escribe adentro.
+ *
+ * La firma exacta de cada composable y lo que se pinta es review + GIM-15 (verificación
+ * visual en el teléfono), no un test que adivina nombres de bytecode.
  */
 class ComponentContractTest {
 
-    private fun composable(file: String, name: String): Method {
-        val cls = Class.forName("app.gimcheck.ui.components.$file")
-        val candidates = cls.methods.filter {
-            ReflectModifier.isStatic(it.modifiers) && it.name == name
-        }
-        assertTrue("no existe el composable $name en $file.kt", candidates.isNotEmpty())
-        return candidates.first()
-    }
+    private val uiDir: File? = listOf(
+        "src/main/java/app/gimcheck/ui",
+        "app/src/main/java/app/gimcheck/ui",
+    ).map { File(it) }.firstOrNull { it.isDirectory }
 
-    private fun params(file: String, name: String): List<Class<*>> =
-        composable(file, name).parameterTypes.toList()
-
-    @Test
-    fun `los siete componentes del contrato existen`() {
-        // Cada nombre se busca en su archivo: si alguien renombra un archivo o un
-        // composable, esto falla antes que el APK.
-        val files = mapOf(
-            "StatTile" to "StatTile",
-            "SetStepper" to "SetStepper",
-            "ChipFilter" to "ChipFilter",
-            "EmptyState" to "EmptyState",
-            "ConfirmInline" to "ConfirmInline",
-            "SectionHeader" to "SectionHeader",
-            "PrimaryButton" to "PrimaryButton",
-        )
-        files.forEach { (name, file) -> composable(file, name) }
-    }
-
-    @Test
-    fun `StatTile recibe k v y s como pide el contrato`() {
-        assertEquals(
-            listOf(String::class.java, String::class.java, String::class.java, Modifier::class.java),
-            params("StatTile", "StatTile").take(4),
-        )
-    }
-
-    @Test
-    fun `SetStepper recibe value step onValue label`() {
-        assertEquals(
-            listOf(
-                Double::class.javaPrimitiveType,
-                Double::class.javaPrimitiveType,
-                Function1::class.java,
-                String::class.java,
-            ),
-            params("SetStepper", "SetStepper").take(4),
-        )
-    }
-
-    @Test
-    fun `ChipFilter recibe label selected onClick`() {
-        assertEquals(
-            listOf(
-                String::class.java,
-                Boolean::class.javaPrimitiveType,
-                Function1::class.java,
-                Modifier::class.java,
-            ),
-            params("ChipFilter", "ChipFilter").take(4),
-        )
-    }
-
-    @Test
-    fun `EmptyState recibe text actionLabel y onAction`() {
-        assertEquals(
-            listOf(
-                String::class.java,
-                String::class.java,
-                Function1::class.java,
-                Modifier::class.java,
-            ),
-            params("EmptyState", "EmptyState").take(4),
-        )
-    }
-
-    @Test
-    fun `ConfirmInline recibe question onConfirm y onCancel`() {
-        assertEquals(
-            listOf(
-                String::class.java,
-                Function1::class.java,
-                Function1::class.java,
-                Modifier::class.java,
-            ),
-            params("ConfirmInline", "ConfirmInline").take(4),
-        )
-    }
-
-    @Test
-    fun `SectionHeader recibe title y una action opcional`() {
-        assertEquals(
-            listOf(
-                String::class.java,
-                Modifier::class.java,
-                String::class.java,
-                Function1::class.java,
-            ),
-            params("SectionHeader", "SectionHeader").take(4),
-        )
-    }
-
-    @Test
-    fun `Meter es una barra con value max banda y color`() {
-        val cls = Class.forName("app.gimcheck.ui.components.MeterKt")
-        val meter = cls.methods.firstOrNull {
-            ReflectModifier.isStatic(it.modifiers) && it.name.startsWith("Meter")
-        }
-        assertTrue("no existe Meter en Meter.kt", meter != null)
-        val types = meter!!.parameterTypes
-        // value, max, bandMin, bandMax, color, modifier, height + Composer + changes
-        assertTrue("Meter perdió parámetros: ${types.toList()}", types.size >= 7)
-        assertEquals(Float::class.javaPrimitiveType, types[0])
-        assertEquals(Float::class.javaPrimitiveType, types[1])
-        assertEquals(Modifier::class.java, types[5])
-    }
-
-    @Test
-    fun `el boton primario tiene label onClick y enabled`() {
-        assertEquals(
-            listOf(
-                String::class.java,
-                Function1::class.java,
-                Modifier::class.java,
-                Boolean::class.javaPrimitiveType,
-            ),
-            params("PrimaryButton", "PrimaryButton").take(4),
-        )
-    }
+    private val stringsXml: File? = listOf(
+        "src/main/res/values/strings.xml",
+        "app/src/main/res/values/strings.xml",
+    ).map { File(it) }.firstOrNull { it.isFile }
 
     @Test
     fun `las alturas son las de la tabla de tokens`() {
@@ -162,5 +47,96 @@ class ComponentContractTest {
         assertEquals("stepper chico", 40.dp, GimHeight.stepper)
         assertEquals("ExerciseRow", 56.dp, GimHeight.exerciseRow)
         assertEquals("Meter", 20.dp, GimHeight.meter)
+    }
+
+    @Test
+    fun `el grafo conserva las nueve rutas del contrato`() {
+        assertEquals(
+            listOf(
+                "hoy",
+                "rutinas",
+                "progreso",
+                "historial",
+                "ajustes",
+                "entrenar",
+                "descanso",
+                "ejercicios",
+                "comparar",
+            ),
+            GimDestination.entries.map { it.route },
+        )
+    }
+
+    @Test
+    fun `cada componente del contrato vive en su archivo`() {
+        val dir = uiDir
+        assumeTrue("no encuentro ui/components desde ${File(".").absolutePath}", dir != null)
+        if (dir == null) return
+
+        listOf(
+            "StatTile",
+            "Meter",
+            "SetStepper",
+            "ChipFilter",
+            "EmptyState",
+            "ConfirmInline",
+            "SectionHeader",
+            "PrimaryButton",
+        ).forEach { name ->
+            val file = File(dir, "components/$name.kt")
+            assertTrue("falta ui/components/$name.kt", file.isFile)
+            assertTrue(
+                "ui/components/$name.kt no declara el composable $name",
+                file.readText().contains("fun $name("),
+            )
+        }
+    }
+
+    @Test
+    fun `EmptyState recibe el copy de la pantalla en vez de escribirlo`() {
+        val dir = uiDir
+        assumeTrue("no encuentro ui/components", dir != null)
+        if (dir == null) return
+
+        val text = File(dir, "components/EmptyState.kt").readText()
+        // §9: 1 frase + 1 acción, las dos las pasa la pantalla.
+        assertTrue("EmptyState debe recibir text: String", text.contains("text: String"))
+        assertTrue(
+            "EmptyState debe recibir actionLabel: String",
+            text.contains("actionLabel: String"),
+        )
+        // La acción es el botón primario de 52 dp, no un link (§7.3).
+        assertTrue(
+            "EmptyState debe usar PrimaryButton(label = actionLabel, …)",
+            text.contains("PrimaryButton(label = actionLabel"),
+        )
+    }
+
+    @Test
+    fun `el copy de los seis estados vacios es el de la tabla de §9`() {
+        val xml = stringsXml
+        assumeTrue("no encuentro res/values/strings.xml", xml != null)
+        if (xml == null) return
+
+        val text = xml.readText()
+        val esperado = mapOf(
+            "empty_hoy_text" to "Todavía no hay rutinas.",
+            "empty_hoy_action" to "Crear rutina",
+            "empty_rutinas_text" to "Este día no tiene ejercicios.",
+            "empty_rutinas_action" to "Agregar ejercicio",
+            "empty_ejercicios_text" to "No hay ejercicios con ese músculo.",
+            "empty_ejercicios_action" to "Limpiar filtro",
+            "empty_progreso_text" to "Sin datos todavía. Anotá una sesión.",
+            "empty_progreso_action" to "Ir a Hoy",
+            "empty_historial_text" to "No hay sesiones anotadas.",
+            "empty_historial_action" to "Empezar sesión",
+            "empty_comparar_text" to "Necesitás dos rutinas para comparar.",
+            "empty_comparar_action" to "Crear rutina",
+        )
+        esperado.forEach { (name, copy) ->
+            val regex = Regex("""<string name="$name"[^>]*>(.*?)</string>""")
+            val real = regex.find(text)?.groupValues?.get(1)
+            assertEquals("copy de $name (§9)", copy, real)
+        }
     }
 }

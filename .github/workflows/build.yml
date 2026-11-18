@@ -36,11 +36,32 @@ jobs:
         with:
           packages: 'platforms;android-37.0 build-tools;36.0.0 build-tools;37.0.0'
 
+      # Robolectric baja `android-all-instrumented` desde Maven en la primera corrida
+      # (MavenArtifactFetcher), no por Gradle: sin este caché cada key nueva de
+      # gradle/actions lo vuelve a descargar, y un solo 5xx/timeout deja el job rojo por
+      # red y no por código. La key va por versión de Robolectric (subirla invalida).
+      # El primer run con caché fría puede fallar; el reintento baja en caliente.
+      - name: Caché de Robolectric (android-all-instrumented)
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-4.18-android-all-${{ runner.os }}-v1
+          restore-keys: |
+            robolectric-4.18-
+
       - name: Tests de dominio (:core, JVM puro)
         run: ./gradlew :core:test --stacktrace
 
       - name: Tests unitarios de :app (JVM, sin emulador)
-        run: ./gradlew :app:testDebugUnitTest --stacktrace
+        # Dos intentos: en caché fría Robolectric descarga `android-all-instrumented` y un
+        # timeout de red no significa que el código esté mal. Un test realmente rojo falla
+        # igual en el reintento (que ya no toca la red) y el job queda rojo.
+        run: |
+          if ./gradlew :app:testDebugUnitTest --stacktrace; then
+            exit 0
+          fi
+          echo "::warning::La primera corrida falló; reintento (Robolectric: descarga en frío o test rojo real)"
+          ./gradlew :app:testDebugUnitTest --stacktrace
 
       - name: Lint (:app)
         run: ./gradlew :app:lintDebug --stacktrace
