@@ -76,6 +76,69 @@ Promedio por día: web `42 min` · Kotlin `42 min` · Δ 0.
 | Superserie sin cerrar (último ítem con `supersetNext`) | un solo grupo: **780 s**, 6 series | 780, 6 | 0 |
 | El mismo par sin superserie | **1080 s** (dos bloques, +30 s de traslado) | 1080 | 0 |
 
+## Conflictos de superserie y pares multiarticulares (`ssConflicts` / `heavyPairs`)
+
+Regla de la web (HTML 329-354), que `:core` reproduce en `Supersets.kt`:
+
+- `musclesOf(ex)` = principal + secundarios **con factor > 0** (el factor no pesa en la
+  detección: sólo habilita).
+- Sólo se comparan ítems **dentro del mismo bloque** (`groupsOf`, unidos por `ss`).
+- Se emite **un conflicto por par**, no por bloque: un bloque de 3 ítems produce 3 pares.
+- `heavyPairs` emite el par cuando **los dos** ejercicios son multiarticulares.
+- La pestaña Comparar cuenta `ssConflicts(d).length` y `heavyPairs(d).length`, así que un
+  bloque de 3 suma 3 al total de conflictos, no 1.
+
+### Los datos de ejemplo no disparan advertencias
+
+| Dato | Web | Kotlin | Δ |
+|---|---|---|---|
+| Rutina A (6 días, sin superseries) | 0 conflictos, 0 pares pesados | 0, 0 | 0 |
+| Rutina B (6 días, 24 bloques de 2) | 0 conflictos, 0 pares pesados | 0, 0 | 0 |
+
+Ojo: el nombre viejo de la Rutina B era «superseries con músculos compartidos», pero en la
+versión actual (`o.v = 21`) **ningún bloque comparte músculo** y ningún par tiene dos
+multiarticulares. `pin`+`bmq`, `fon`+`absf`, `tpb`+`vl`, etc.: los
+multiarticulares (`pp`, `pin`, `fon`, `dl`, `pm`, `hip`, `po`, `dor`) quedaron siempre con
+un accesorio del otro lado. Los conflictos sólo se ven con datos propios, por eso la tabla
+siguiente usa bloques construidos con los ejercicios del catálogo del seed.
+
+### Bloques de prueba (y qué devuelve cada lado)
+
+| Bloque | Conflicto web (músculos compartidos) | Kotlin | Pares pesados web | Kotlin | Δ |
+|---|---|---|---|---|---|
+| `fon` + `pp` | 1: **Pecho, Tríceps, Hombro anterior** | igual, en ese orden | 1 (los dos son multi) | 1 | 0 |
+| `pp` + `tpa` + `tpb` (bloque de 3) | 3 pares, todos con **Tríceps** | 3: (pp,tpa) (pp,tpb) (tpa,tpb) | 0 | 0 | 0 |
+| `dl` + `bm` (conflicto sólo por secundario) | 1: **Bíceps, Antebrazo** | igual | 0 | 0 | 0 |
+| `pp` + `ant` (bloque limpio) | 0 | 0 | 0 | 0 | 0 |
+| `pp` + `pin` **sin** superserie | 0 (bloques distintos) | 0 | 0 (bloques distintos) | 0 | 0 |
+| `pp` + `pin` con superserie | 1: **Pecho, Hombro anterior, Tríceps** | igual | 1 | 1 | 0 |
+| `pp` (`ss`) + `tpa` + `tpb` (`ss`, último) | 1: **Tríceps** (el último queda en un grupo de 1) | igual | 0 | 0 | 0 |
+| Secundario con factor 0 contra `tpa` | 0 (la web filtra `x.f>0`) | 0 | 0 | 0 | 0 |
+
+El orden de `shared` es el de `a`: principal primero, después los secundarios en el orden
+en que están declarados. `fon` los declara `Tríceps` y después `Hombro anterior`, así que
+sale `Pecho, Tríceps, Hombro anterior` y no el orden alfabético ni el de `b`.
+
+### Decisiones y diferencias deliberadas (ningún número cambia)
+
+1. **El factor de los secundarios no pesa.** El pedido hablaba de «principal pesa 1,
+   secundarios su factor», pero `ssConflicts` de la web **sólo usa `f > 0`**: un secundario
+   con 0,25 conflictúa igual que uno con 1. Todos los músculos compartidos se reportan con
+   el factor de cada lado (`MuscleShare.aFactor` / `bFactor`) y un `overlap` = producto
+   (1×1, 1×0,5, 0,5×0,5) que es informativo. Inventar un umbral o un peso mínimo habría
+   cambiado qué bloques avisa la app respecto de la web.
+2. **Deduplicación por músculo.** `musclesOf` no deduplica: si un secundario repite el
+   principal, la web puede mostrar «Comparte Pecho, Pecho». `participatingMuscles` deja una
+   sola entrada con el factor mayor. Sólo cambia datos patológicos; el editor además los
+   rechaza (`DuplicateSecondary`).
+3. **`heavyPairs` mira el mismo bloque que `ssConflicts`**, no el día entero. Dos
+   multiarticulares sueltos en el mismo día no son advertencia (la web tampoco los marca).
+4. **Invariantes del editor**: `sets` 1–20, factor 0–1 y última marca de superserie salen
+   de la web (clamps del formulario y botón deshabilitado en el último ítem). Dos cosas son
+   de la app: `restOverrideSeconds >= 0` (la web no tiene override por ítem; su descanso de
+   ejercicio se clampea con `Math.max(0, …)`) y **ningún secundario repetido**, que la web
+   permite aunque después sume dos veces en `volume`.
+
 ## Lo que no coincidió (y por qué)
 
 Ningún número publicado por la web difiere del de Kotlin. Sí hay dos cosas que **no son
@@ -102,4 +165,5 @@ Formato de salida: `formatDuration(15100)` → `4 h 12 min` y `formatNumber(1.75
 
 `./scripts/check-core.sh` (taskset 0-1, guardas de RAM/temperatura) corre
 `StatsParityTest` (los números de estas tablas) y `StatsEdgeCasesTest` (los casos borde y los
-formatos). El fixture `HtmlSeed.kt` se regenera leyendo el HTML si los datos de ejemplo cambian.
+formatos), `SupersetsTest` (conflictos y pares pesados) y `EditorValidationTest` (invariantes
+del editor). El fixture `HtmlSeed.kt` se regenera leyendo el HTML si los datos de ejemplo cambian.
