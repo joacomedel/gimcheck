@@ -353,11 +353,11 @@ class HoyViewModel internal constructor(
 
         /** `miércoles 18 de noviembre`. Sin librerías nuevas: dos listas y `ordinal`. */
         fun dateLabel(date: LocalDate): String =
-            "${WEEKDAYS[date.dayOfWeek.ordinal]} ${date.dayOfMonth} de ${MONTHS[date.monthNumber - 1]}"
+            "${WEEKDAYS[date.dayOfWeek.ordinal]} ${date.day} de ${MONTHS[date.month.number - 1]}"
 
         /** `18 nov`, para las filas de "Últimos". */
         fun shortDateLabel(date: LocalDate): String =
-            "${date.dayOfMonth} ${MONTHS_SHORT[date.monthNumber - 1]}"
+            "${date.day} ${MONTHS_SHORT[date.month.number - 1]}"
 
         fun greetingFor(hour: Int): String = when {
             hour < 12 -> "Buenos días"

@@ -128,7 +128,7 @@ class HoyViewModelTest {
 
     @Test
     fun `el peso corporal de hoy se escribe y se relee`() = runBlocking {
-        state()
+        loadedState()
 
         viewModel.setBodyWeight(81.3)
         viewModel.saveBodyWeightNow()
