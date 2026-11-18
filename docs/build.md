@@ -19,7 +19,7 @@ Tres niveles, porque este equipo no puede compilar Android (ver
 | Compose compiler | **2.2.10** | plugin `org.jetbrains.kotlin.plugin.compose` (misma versión que Kotlin) |
 | KSP | 2.3.14 | catálogo (`ksp`); aplicado en `:app` desde GIM-9 (genera los DAO de Room y exporta el schema) |
 | Compose BOM | 2026.09.00 | catálogo (`composeBom`) |
-| Room | 2.8.5 | catálogo (`room`); aplicado en `:app` desde GIM-9 (`runtime` + `ktx` + `room-compiler` por KSP) |
+| Room | 2.8.5 | catálogo (`room`); aplicado en `:app` desde GIM-9 (`runtime` + `ktx` + `room-compiler` por KSP + plugin `androidx.room` para exportar el schema) |
 | activity-compose | 1.13.0 | catálogo |
 | navigation-compose | 2.10.2 | catálogo |
 | lifecycle-* | 2.11.0 | catálogo |
@@ -285,8 +285,12 @@ ahí.
 
 Dos piezas de build que sostienen lo anterior (en `app/build.gradle.kts`):
 
-- `ksp { arg("room.schemaLocation", "$projectDir/schemas") }` + `exportSchema = true`:
-  el schema versionado se escribe en `app/schemas/<clase>/<version>.json` y **se commitea**.
+- `alias(libs.plugins.androidx.room)` + `room { schemaDirectory("$projectDir/schemas") }` +
+  `exportSchema = true`: **el plugin oficial de Room** es el que deja el schema versionado
+  en `app/schemas/<clase>/<version>.json` cuando el procesador corre por KSP (Room 2.8
+  escribe primero en `build/` y el plugin copia). Sin el plugin el JSON no aparece y
+  `MigrationTestHelper` falla con `FileNotFoundException`. El JSON **se commitea**, y el
+  workflow falla si el generado difiere del commiteado (paso *Schema de Room commiteado*).
 - `sourceSets["debug"].assets.srcDir("$projectDir/schemas")`: `MigrationTestHelper`
   lee el JSON con `context.assets.open(...)`; sólo la variante `debug` (y los tests)
   lo llevan, el APK de release no.

@@ -49,16 +49,17 @@ jobs:
         run: ./gradlew :app:assembleDebug --stacktrace
 
       # El schema exportado por Room (app/schemas/) se commitea: es el contrato
-      # que valida MigrationTestHelper. Temporalmente se sube como artefacto
-      # para bajar el JSON generado en CI.
-      - name: Schema de Room (efimero, se baja como artefacto)
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: room-schemas
-          path: app/schemas/
-          if-no-files-found: error
-          retention-days: 7
+      # que valida MigrationTestHelper. Si el generado difiere del commiteado,
+      # falta commitear el bump del esquema (ADR 0003).
+      - name: Schema de Room commiteado
+        run: |
+          if [ -n "$(git status --porcelain -- app/schemas)" ]; then
+            echo "::error::El schema de Room generado no coincide con app/schemas/ commiteado."
+            git status --porcelain -- app/schemas
+            git --no-pager diff -- app/schemas
+            exit 1
+          fi
+          echo "app/schemas/ al día"
 
       - name: Publicar artifact gimcheck-debug.apk
         uses: actions/upload-artifact@v7

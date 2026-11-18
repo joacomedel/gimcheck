@@ -97,7 +97,9 @@ test:
 ### Versionado y migraciones
 
 - `exportSchema = true`; los JSON quedan versionados en `app/schemas/<clase>/<version>.json` y se
-  commitean. `app/build.gradle.kts` los copia a los assets de `debug` para que
+  commitean. Se exportan con el **plugin oficial de Room** (`androidx.room`), que es el que copia
+  el schema que KSP escribe en `build/`; `app/build.gradle.kts` lo declara con
+  `room { schemaDirectory(...) }`. Los JSON también se copian a los assets de `debug` para que
   `MigrationTestHelper` los lea en tests JVM.
 - **v1 es la creación**: Room no ejecuta una `Migration(0, 1)`. Una instalación nueva abre la base
   vacía y llama `onCreate` con el esquema compilado; el test de creación es
