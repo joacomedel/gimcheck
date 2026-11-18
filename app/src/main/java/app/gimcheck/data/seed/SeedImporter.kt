@@ -27,7 +27,7 @@ import kotlinx.coroutines.withContext
  * los aplica sin filas. El test del seed verifica esa igualdad, así una divergencia
  * entre la web y §8 no pasa inadvertida.
  */
-class SeedImporter(
+class SeedImporter internal constructor(
     private val db: AppDatabase,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
