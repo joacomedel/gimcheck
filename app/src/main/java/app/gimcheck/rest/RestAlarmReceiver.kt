@@ -6,8 +6,8 @@ import android.content.Intent
 
 /**
  * Disparo de la alarma exacta de respaldo (ADR 0004): si el proceso estaba muerto,
- * Android lo despierta para entregar este broadcast y queda la notificación de
- * "descanso terminado".
+ * Android lo despierta para entregar este broadcast y sale el aviso de "descanso
+ * terminado" con el `alertMode` configurado (GIM-23).
  *
  * No escribe la base ni toca la sesión: el `rest_ends_at` sigue en `session_state` y la
  * máquina (`Restore`/`Tick`) es la que cierra el descanso cuando la app vuelve. Acá sólo
@@ -17,7 +17,9 @@ class RestAlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context?, intent: Intent?) {
         if (context == null || intent?.action != ACTION_REST_ALARM) return
-        RestNotifications.showRestDone(context.applicationContext)
+        // Con la app cerrada `AppVisibility` ya está en `false`: pantalla completa (o su
+        // respaldo) si el modo lo pide. Si está abierta, el aviso es inline en Entrenar.
+        RestAlertCenter.restFinished(context.applicationContext)
     }
 
     companion object {

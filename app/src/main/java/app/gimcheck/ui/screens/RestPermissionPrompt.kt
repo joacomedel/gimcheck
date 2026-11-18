@@ -19,14 +19,19 @@ import app.gimcheck.R
 import app.gimcheck.rest.RestPermissions
 
 /**
- * Pide los permisos del cronómetro **en contexto** (GIM-22): la primera vez que hay una
- * sesión activa, no al abrir la app. Es la regla del ADR 0004 y de la política de
+ * Pide los permisos del aviso **en contexto** (GIM-22 y GIM-23): la primera vez que hay
+ * una sesión activa, no al abrir la app. Es la regla del ADR 0004 y de la política de
  * Android: un diálogo al arrancar sin explicación es un rechazo seguro.
  *
- * - `POST_NOTIFICATIONS` se pide con el diálogo del sistema (13+).
- * - Las alarmas exactas no se piden con un diálogo: se abre `ACTION_REQUEST_SCHEDULE_EXACT_ALARM`.
- * - Si el usuario niega cualquiera de los dos, **no pasa nada**: el descanso sigue con
- *   el servicio en primer plano y la pantalla. El texto del diálogo lo dice.
+ * Los tres, en este orden y de a uno:
+ *
+ * - `POST_NOTIFICATIONS` con el diálogo del sistema (13+).
+ * - Alarmas exactas: no hay diálogo, se abre `ACTION_REQUEST_SCHEDULE_EXACT_ALARM`.
+ * - Pantalla completa (`USE_FULL_SCREEN_INTENT`, 14+): `ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT`.
+ *
+ * Si el usuario niega cualquiera, **no pasa nada**: el aviso cae al siguiente escalón
+ * (overlay → heads-up) y el cronómetro sigue con el servicio en primer plano. El texto
+ * del diálogo lo dice.
  *
  * Se pregunta una sola vez por proceso (`rememberSaveable`): si el usuario dijo "Ahora
  * no", no se le vuelve a insistir en cada ronda.
@@ -37,15 +42,14 @@ internal fun RestPermissionPrompt(active: Boolean) {
     var asked by rememberSaveable { mutableStateOf(false) }
     var needsNotifications by rememberSaveable { mutableStateOf(false) }
     var needsExact by rememberSaveable { mutableStateOf(false) }
+    var needsFullScreen by rememberSaveable { mutableStateOf(false) }
 
     val notificationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {
-        // Conceda o niegue, el flujo sigue igual: después del diálogo del sistema se
-        // ofrece lo único que falta (las alarmas exactas), si hace falta.
-        if (needsExact) RestPermissions.requestExactAlarms(context)
+        // Conceda o niegue, el flujo sigue igual: si falta otro permiso, el mismo
+        // diálogo vuelve a aparecer con su texto (el orden lo decide el `when` de abajo).
         needsNotifications = false
-        needsExact = false
     }
 
     LaunchedEffect(active) {
@@ -54,23 +58,28 @@ internal fun RestPermissionPrompt(active: Boolean) {
         needsNotifications = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             !RestPermissions.notificationsGranted(context)
         needsExact = !RestPermissions.exactAlarmsGranted(context)
+        // El modo por defecto (`SCREEN_VIBRATE`) incluye pantalla, y el selector vive en
+        // Ajustes (GIM-29): si el permiso falta se ofrece una vez, con su explicación.
+        // Con la app en primer plano el FSI no se usa, pero el pedido no estorba.
+        needsFullScreen = !RestPermissions.fullScreenIntentGranted(context)
     }
 
-    if (!needsNotifications && !needsExact) return
+    if (!needsNotifications && !needsExact && !needsFullScreen) return
 
     AlertDialog(
         onDismissRequest = {
             needsNotifications = false
             needsExact = false
+            needsFullScreen = false
         },
         title = { Text(stringResource(R.string.rest_permiso_titulo)) },
         text = {
             Text(
                 stringResource(
-                    if (needsNotifications) {
-                        R.string.rest_permiso_texto
-                    } else {
-                        R.string.rest_permiso_alarmas_texto
+                    when {
+                        needsNotifications -> R.string.rest_permiso_texto
+                        needsExact -> R.string.rest_permiso_alarmas_texto
+                        else -> R.string.rest_permiso_pantalla_texto
                     },
                 ),
             )
@@ -86,6 +95,11 @@ internal fun RestPermissionPrompt(active: Boolean) {
                             RestPermissions.requestExactAlarms(context)
                             needsExact = false
                         }
+
+                        else -> {
+                            RestPermissions.requestFullScreenIntent(context)
+                            needsFullScreen = false
+                        }
                     }
                 },
             ) {
@@ -97,6 +111,7 @@ internal fun RestPermissionPrompt(active: Boolean) {
                 onClick = {
                     needsNotifications = false
                     needsExact = false
+                    needsFullScreen = false
                 },
             ) {
                 Text(stringResource(R.string.rest_permiso_ahora_no))

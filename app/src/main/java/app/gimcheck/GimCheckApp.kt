@@ -1,6 +1,7 @@
 package app.gimcheck
 
 import android.app.Application
+import app.gimcheck.rest.AppVisibility
 
 /**
  * `Application` de GimCheck: arma el [AppContainer] (inyección manual, sin Hilt).
@@ -18,6 +19,11 @@ class GimCheckApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // `alertMode` de §5 distingue "app en primer plano" (aviso inline, sin robar la
+        // pantalla) de "app cerrada" (full-screen intent u overlay). El cronómetro vive
+        // en un servicio y la alarma en un receptor: ninguno ve la UI, así que el estado
+        // se registra una sola vez acá.
+        AppVisibility.register(this)
     }
 
     companion object {

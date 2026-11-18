@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-      Cronómetro de descanso (GIM-22, ADR 0004).
+      Cronómetro de descanso y aviso de fin (GIM-22 y GIM-23, ADR 0004).
 
       - FOREGROUND_SERVICE + FOREGROUND_SERVICE_SPECIAL_USE: el descanso corre en un
         servicio en primer plano mientras la app está cerrada. El tipo es `specialUse`
@@ -14,13 +14,22 @@
         USE_EXACT_ALARM para reloj/alarma/calendario. Acá se consulta
         `canScheduleExactAlarms()` y, si no está concedido, el servicio en primer plano
         mantiene el cronómetro igual.
-      - USE_FULL_SCREEN_INTENT no se declara en este ticket: la pantalla completa de
-        "Descanso terminado" es GIM-23.
+      - USE_FULL_SCREEN_INTENT (GIM-23): la pantalla de "Descanso terminado" se abre sola
+        con el *full-screen intent* de la notificación. Desde Android 14 el sistema sólo
+        lo concede de fábrica a apps de llamadas/alarma; el resto lo habilita en Ajustes
+        (`ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT`). Si está negado, el aviso cae a
+        overlay y después a heads-up: nunca queda en silencio.
+      - SYSTEM_ALERT_WINDOW: respaldo del FSI (overlay del aviso encima de otras apps).
+      - VIBRATE: es la vibración del aviso (`restVibration`). Sin ella no hay forma de
+        hacer vibrar el teléfono.
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name=".GimCheckApp"
@@ -38,6 +47,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          "Descanso terminado" a pantalla completa (§6 #3). Se abre con el full-screen
+          intent de la notificación o desde el overlay; `showWhenLocked`/`turnScreenOn`
+          (API 27+) la muestran sobre el bloqueo y encienden la pantalla. No sale en
+          recientes y no se puede lanzar desde afuera: sólo la app la abre.
+        -->
+        <activity
+            android:name=".rest.RestDoneActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
 
         <!--
           El cronómetro vive acá, no en la pantalla: se arranca con el deadline absoluto

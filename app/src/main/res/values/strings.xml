@@ -156,4 +156,15 @@
     <string name="rest_permiso_alarmas_texto">Para que el aviso llegue aunque el teléfono mate el proceso, GimCheck usa alarmas exactas. Sin ese permiso el cronómetro igual funciona mientras el servicio siga vivo.</string>
     <string name="rest_permiso_activar">Permitir</string>
     <string name="rest_permiso_ahora_no">Ahora no</string>
+
+    <!--
+      Aviso de fin de descanso (GIM-23, §5). El inline de Entrenar y la pantalla
+      completa comparten el mismo texto de "Descanso terminado" que ya existe.
+    -->
+    <string name="entrenar_descanso_terminado_inline">Descanso terminado · empezá la próxima serie</string>
+    <string name="rest_done_siguiente">Seguí con %1$s · ronda %2$d</string>
+    <string name="rest_done_sin_sesion">Volvé a la app para seguir con la sesión.</string>
+    <string name="rest_done_empezar">Empezar serie</string>
+    <string name="rest_overlay_texto">Descanso terminado · tocá para volver a GimCheck</string>
+    <string name="rest_permiso_pantalla_texto">Para que la pantalla de "Descanso terminado" se abra sola con el teléfono bloqueado, Android pide este permiso aparte. Si no lo das, el aviso llega igual como notificación.</string>
 </resources>

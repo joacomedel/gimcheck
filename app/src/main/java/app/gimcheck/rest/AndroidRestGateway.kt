@@ -57,7 +57,12 @@ class AndroidRestGateway(
 
     override fun onCancelRest() = stopAll()
 
-    override fun onRestFinished() = stopAll()
+    override fun onRestFinished() {
+        stopAll()
+        // El descanso llegó a cero con la app abierta: aviso inline en Entrenar, más la
+        // señal de `alertMode` (§5). `AppVisibility` decide; acá no se roba la pantalla.
+        RestAlertCenter.restFinished(app)
+    }
 
     private fun stopAll() {
         timer.stop(app)

@@ -415,8 +415,11 @@ private fun EntrenarExercise(state: EntrenarUiState) {
             )
         }
         if (state.restDone) {
+            // El aviso inline del fin de descanso (§5): con la app en primer plano no se
+            // usa full-screen intent, la señal es la vibración/sonido y el texto aparece
+            // acá, sin sacar al usuario de la pantalla.
             Text(
-                text = stringResource(R.string.entrenar_descanso_terminado),
+                text = stringResource(R.string.entrenar_descanso_terminado_inline),
                 style = GimText.cuerpo,
                 color = colors.good,
             )

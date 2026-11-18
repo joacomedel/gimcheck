@@ -2,6 +2,7 @@ package app.gimcheck.rest
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -53,6 +54,49 @@ object RestPermissions {
             context.startActivity(intent)
         } catch (e: Exception) {
             // Algunos OEM no traen esa pantalla: se sigue con el servicio en primer plano.
+        }
+    }
+
+    /**
+     * `USE_FULL_SCREEN_INTENT` (API 34+): Android sólo lo concede de fábrica a apps de
+     * llamadas o alarma. Antes de 34 no existe el permiso efectivo y vale `true`.
+     *
+     * Si está negado, el aviso cae a overlay y después a heads-up (§5): la pantalla
+     * completa es una mejora, no un requisito.
+     */
+    fun fullScreenIntentGranted(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return false
+        return manager.canUseFullScreenIntent()
+    }
+
+    /** Abre la pantalla del sistema para conceder el full-screen intent (API 34+). */
+    fun requestFullScreenIntent(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
+        val intent = Intent(
+            Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+            Uri.parse("package:${context.packageName}"),
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            // Sin esa pantalla queda el overlay o el heads-up.
+        }
+    }
+
+    /** `SYSTEM_ALERT_WINDOW`: el respaldo del full-screen intent (overlay del aviso). */
+    fun overlayGranted(context: Context): Boolean = Settings.canDrawOverlays(context)
+
+    /** Pide "aparecer encima de otras apps"; se concede en una pantalla de Ajustes. */
+    fun requestOverlay(context: Context) {
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:${context.packageName}"),
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            // Sin esa pantalla, el overlay no existe y queda el heads-up.
         }
     }
 }

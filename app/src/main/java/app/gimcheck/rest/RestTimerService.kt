@@ -101,7 +101,10 @@ class RestTimerService : Service() {
      * app vuelve; acá no se escribe la base.
      */
     private fun finishRest() {
-        RestNotifications.showRestDone(this)
+        // El aviso configurable de GIM-23 (§5): notificación siempre, más pantalla,
+        // vibración y sonido según `alertMode`. Con la app cerrada corresponde la
+        // pantalla completa; con la app abierta, el aviso inline de Entrenar.
+        RestAlertCenter.restFinished(this)
         RestAlarmScheduler(this).cancel()
         shutdown(keepNotification = true)
     }

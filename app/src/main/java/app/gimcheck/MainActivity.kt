@@ -16,6 +16,16 @@ import app.gimcheck.ui.theme.isDark
 
 class MainActivity : ComponentActivity() {
 
+    /**
+     * Abrir la app es "interactuar" con el aviso de fin de descanso (§5): se corta la
+     * repetición de `restAlertRepeat` y se retira la notificación de "terminado". Si no
+     * había aviso pendiente no hace nada, así no se toca la del cronómetro.
+     */
+    override fun onResume() {
+        super.onResume()
+        app.gimcheck.rest.RestAlertCenter.dismiss(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 

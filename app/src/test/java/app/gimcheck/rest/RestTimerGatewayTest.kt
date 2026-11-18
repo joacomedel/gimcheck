@@ -148,7 +148,7 @@ class RestTimerGatewayTest {
     fun `el fin de descanso publica en el canal de fin`() {
         shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
 
-        RestNotifications.showRestDone(app)
+        RestNotifications.postRestDone(app, fullScreen = true)
 
         val manager = app.getSystemService(NotificationManager::class.java)
         val posted = shadowOf(manager).allNotifications
