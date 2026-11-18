@@ -1,9 +1,7 @@
 package app.gimcheck.ui.theme
 
-import androidx.compose.material3.Typography
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.sp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -213,36 +211,36 @@ class TokensContractTest {
 
     @Test
     fun `solo se usan las dos familias y todos los roles de M3 estan mapeados`() {
-        val familias = setOf<FontFamily?>(BarlowCondensed, IbmPlexSans)
-        assertsRolesMapeados(GimTypography, familias)
-    }
-
-    /**
-     * Los 15 roles de `Typography`. Si alguno quedó sin asignar, `fontFamily` es `null`
-     * (hereda la default de Material) y el test falla: así se evita el `AlertDialog` en
-     * Roboto dentro de una app de dos familias.
-     */
-    private fun assertsRolesMapeados(t: Typography, familias: Set<FontFamily?>) {
-        val roles = mapOf(
-            "displayLarge" to t.displayLarge,
-            "displayMedium" to t.displayMedium,
-            "displaySmall" to t.displaySmall,
-            "headlineLarge" to t.headlineLarge,
-            "headlineMedium" to t.headlineMedium,
-            "headlineSmall" to t.headlineSmall,
-            "titleLarge" to t.titleLarge,
-            "titleMedium" to t.titleMedium,
-            "titleSmall" to t.titleSmall,
-            "bodyLarge" to t.bodyLarge,
-            "bodyMedium" to t.bodyMedium,
-            "bodySmall" to t.bodySmall,
-            "labelLarge" to t.labelLarge,
-            "labelMedium" to t.labelMedium,
-            "labelSmall" to t.labelSmall,
+        val roles: List<Pair<String, Pair<TextStyle?, TextStyle>>> = listOf(
+            "displayLarge" to (GimTypography.displayLarge to GimText.display),
+            "displayMedium" to (GimTypography.displayMedium to GimText.stat),
+            "displaySmall" to (GimTypography.displaySmall to GimText.titulo),
+            "headlineLarge" to (GimTypography.headlineLarge to GimText.titulo),
+            "headlineMedium" to (GimTypography.headlineMedium to GimText.section),
+            "headlineSmall" to (GimTypography.headlineSmall to GimText.subtitulo),
+            "titleLarge" to (GimTypography.titleLarge to GimText.section),
+            "titleMedium" to (GimTypography.titleMedium to GimText.subtitulo),
+            "titleSmall" to (GimTypography.titleSmall to GimText.boton),
+            "bodyLarge" to (GimTypography.bodyLarge to GimText.cuerpo),
+            "bodyMedium" to (GimTypography.bodyMedium to GimText.detalle),
+            "bodySmall" to (GimTypography.bodySmall to GimText.detalle),
+            "labelLarge" to (GimTypography.labelLarge to GimText.boton),
+            "labelMedium" to (GimTypography.labelMedium to GimText.etiqueta),
+            "labelSmall" to (GimTypography.labelSmall to GimText.etiqueta),
         )
-        roles.forEach { (rol, estilo) ->
-            assertTrue("$rol sin familia del contrato (${estilo.fontFamily})", estilo.fontFamily in familias)
+        // Un rol sin asignar no queda vacío: queda con la tipografía default de
+        // Material (Roboto) y su familia es `null` o `FontFamily.Default`.
+        val problemas = roles.mapNotNull { (rol, estilos) ->
+            val real = estilos.first
+            when {
+                real == null -> "$rol=null"
+                real != estilos.second -> "$rol=no-es-el-estilo-del-contrato"
+                real.fontFamily != BarlowCondensed && real.fontFamily != IbmPlexSans ->
+                    "$rol=familia-${real.fontFamily}"
+                else -> null
+            }
         }
+        assertTrue("roles de MaterialTheme.typography fuera del contrato: $problemas", problemas.isEmpty())
     }
 
     // --- proyección a Material 3 --------------------------------------------
