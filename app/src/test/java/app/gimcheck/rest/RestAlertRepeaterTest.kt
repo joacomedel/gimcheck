@@ -31,6 +31,11 @@ class RestAlertRepeaterTest {
                 }
             }
         }
+
+        /** "Suena" el primer aviso programado: se saca de la cola y se ejecuta. */
+        fun runNext() {
+            pending.removeAt(0).action()
+        }
     }
 
     @Test
@@ -58,7 +63,7 @@ class RestAlertRepeaterTest {
         assertEquals(30_000L, scheduler.pending.single().delayMillis)
 
         // Suena el aviso programado y se vuelve a programar otro.
-        scheduler.pending.single().action()
+        scheduler.runNext()
         assertEquals(1, alerts)
         assertEquals(1, scheduler.pending.size)
 
