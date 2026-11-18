@@ -279,12 +279,34 @@ Los tests van en `app/src/test/java/` (y no `src/test/kotlin/`) a propósito: es
 el directorio de fuentes que AGP siempre registra; Kotlin compila `.kt` ahí sin
 configuración extra.
 
-Verificación de que el paso está cableado (2026-11-18, GIM-35): un commit
-temporal con `assertTrue(false)` en `:app` puso el run en **rojo** y el job se
-cortó en el paso 6; el revert volvió el run a **verde**. Links, tiempos y
-artefacto en la sección siguiente.
+Verificación de que el paso está cableado (2026-11-18, GIM-35),
+con la prueba de rojo y verde hecha en `master`:
 
-Última verificación al escribir esto (2026-11-17): run
+| Run | Commit | Resultado | Qué pasó |
+|---|---|---|---|
+| [44229535632](https://github.com/joacomedel/gimcheck/actions/runs/44229535632) | `ed9b9b2` (temporal) | **rojo**, 58 s | `RojoTemporalTest > rojo FAILED` (`AssertionError`): el job corta en el paso *Tests unitarios de :app*, `:app:lintDebug` y `:app:assembleDebug` quedan **skipped** y se sube `gimcheck-test-reports` |
+| [44229838339](https://github.com/joacomedel/gimcheck/actions/runs/44229838339) | `13e9aa7` (revert) | **verde**, 1 m 2 s | los 3 tests de `MainActivitySkeletonTest` pasan y el APK se publica igual que antes |
+
+El commit rojo **no quedó en `master`**: se revirtió con `git revert` (el revert
+es el `13e9aa7`). Costo del paso nuevo medido en el run verde
+[44229165259](https://github.com/joacomedel/gimcheck/actions/runs/44229165259):
+`:app:testDebugUnitTest` tarda **18 s** (compila `:app` + los tests y los corre);
+ese run tardó 2 m 25 s sólo porque `setup-android` consumió 60 s en esa instancia
+del runner. El total del run se mantiene en **54 s – 1 m 2 s** con caché caliente,
+contra ~50 s antes de GIM-35: el paso nuevo agrega del orden de **10–18 s**.
+
+Detalle que muerde al escribir tests de `:app`: el jar que AGP entrega al test
+JVM (`app/build/intermediates/runtime_app_classes_jar/...`) marca `onCreate`
+como **protected** aunque en el APK sea `public`. `Class.getMethod("onCreate",
+Bundle)` lanza `NoSuchMethodException`; hay que usar `getDeclaredMethod`. No usar
+`Modifier.isPublic` sobre métodos de `ComponentActivity` en tests JVM.
+
+Run de referencia de GIM-35 (2026-11-18): [44229838339](https://github.com/joacomedel/gimcheck/actions/runs/44229838339)
+en `success` sobre `master` en `13e9aa7` (1 m 2 s), con `:core:test` ✓,
+`:app:testDebugUnitTest` ✓ (3 tests), `:app:lintDebug` ✓, `:app:assembleDebug` ✓ y el artifact
+`gimcheck-debug.apk` publicado.
+
+Verificación anterior, sin tests de `:app` (2026-11-17): run
 [44203803099](https://github.com/joacomedel/gimcheck/actions/runs/44203803099) en `success` sobre
 `master` en `965bcdb` (1 m 19 s), con `:core:test` ✓, `:app:lintDebug` ✓, `:app:assembleDebug` ✓
 y artifact `gimcheck-debug.apk` de **11.359.283 B** (11,36 MB decimales / 10,83 MiB), que contiene
