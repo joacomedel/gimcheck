@@ -268,7 +268,7 @@ class TokensContractTest {
             rolesDeM3.map { it.estilo.fontFamily }.toSet(),
         )
         val problemas = rolesDeM3.mapNotNull { rol ->
-            val real = when {
+            val motivo = when {
                 rol.estilo.fontFamily != rol.familia -> "familia=${rol.estilo.fontFamily}"
                 rol.estilo.fontWeight != rol.peso -> "peso=${rol.estilo.fontWeight}"
                 (rol.estilo.fontFeatureSettings == TABULAR_NUMBERS) != rol.tabular ->
@@ -276,7 +276,7 @@ class TokensContractTest {
                 rol.estilo.fontSize.value <= 0f -> "sin tamaño"
                 else -> null
             }
-            "${rol.rol}: $real"
+            motivo?.let { "${rol.rol}: $it" }
         }
         assertTrue("roles fuera del contrato: $problemas", problemas.isEmpty())
     }
