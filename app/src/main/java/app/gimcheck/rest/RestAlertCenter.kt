@@ -84,6 +84,9 @@ object RestAlertCenter {
 
     private fun fire(context: Context, settings: AppSettings, inForeground: Boolean) {
         posted = true
+        // Lo que el dueño va a leer en la pantalla de diagnóstico (GIM-43): con `true`,
+        // que no se abra la pantalla completa es lo correcto (el aviso es inline).
+        RestAlertDiagnostics.recordFire(context, inForeground)
         val alerter = RestAlerter(
             context = context,
             notifier = SystemRestDoneNotifier(context),

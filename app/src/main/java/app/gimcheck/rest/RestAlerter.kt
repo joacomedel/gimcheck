@@ -35,7 +35,7 @@ class SystemRestDoneNotifier(
  *
  * | Parte del plan | Qué hace |
  * |---|---|
- * | (siempre) | publica la notificación del canal `rest_done` |
+ * | (siempre) | publica la notificación del canal `rest_done_v2` |
  * | `vibrate` | patrón de `restVibration` con el `Vibrator` |
  * | `sound` | la opción de `restSound` (canal o `RingtoneManager`) |
  * | `FULL_SCREEN_INTENT` | lo lleva la notificación (el sistema abre [RestDoneActivity]) |

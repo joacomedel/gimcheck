@@ -8,7 +8,7 @@ import app.gimcheck.data.settings.RestVibration
  *
  * La cadena de respaldo del ADR 0004 es la de esta enumeración: pantalla completa si el
  * sistema lo permite, overlay si hay `SYSTEM_ALERT_WINDOW`, y heads-up (la notificación
- * de alta prioridad del canal `rest_done`) cuando no hay nada más.
+ * de alta prioridad del canal `rest_done_v2`) cuando no hay nada más.
  */
 enum class RestScreenDelivery {
     /** Notificación con *full-screen intent*: el sistema abre [RestDoneActivity] solo. */

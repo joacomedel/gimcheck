@@ -19,7 +19,7 @@ import app.gimcheck.ui.components.formatRestClock
  *
  * - **En curso** (canal `rest_timer`, importancia `LOW`): la del servicio en primer
  *   plano. Muestra cuánto falta con el mismo formato `m:ss` de §4 y no suena.
- * - **Terminado** (canal `rest_done`, importancia `HIGH`): la del aviso de fin de
+ * - **Terminado** (canal `rest_done_v2`, importancia `HIGH`): la del aviso de fin de
  *   descanso (`docs/especificacion.md` §5). Es **la que nunca puede faltar**: vibración,
  *   sonido, overlay y full-screen intent son formas de llamar la atención, pero la
  *   notificación se publica siempre, incluso con `alertMode = NONE`.
@@ -31,7 +31,20 @@ import app.gimcheck.ui.components.formatRestClock
 internal object RestNotifications {
 
     const val CHANNEL_REST: String = "rest_timer"
-    const val CHANNEL_REST_DONE: String = "rest_done"
+
+    /**
+     * Canal vigente del fin de descanso (GIM-43).
+     *
+     * Lleva `_v2` **a propósito**: las settings de un canal son inmutables. El APK de
+     * GIM-22 ya creó `rest_done` en el teléfono del dueño y Android conservó esa
+     * configuración al reinstalar; con el id viejo no hay forma de subir la importancia
+     * ni recuperar el heads-up (y el full-screen intent no se dispara). Un id nuevo es
+     * el único camino para que el sistema aplique `IMPORTANCE_HIGH` de cero.
+     */
+    const val CHANNEL_REST_DONE: String = "rest_done_v2"
+
+    /** Canal del primer APK (GIM-22). Queda fuera de uso y se borra al crear los demás. */
+    const val LEGACY_CHANNEL_REST_DONE: String = "rest_done"
 
     /**
      * Crea los canales. Idempotente (`createNotificationChannel` sólo actualiza) y
@@ -41,7 +54,8 @@ internal object RestNotifications {
      * El canal de fin de descanso es **silencioso a propósito**: el tono lo pone
      * [RestSoundPlayer] con la opción de `restSound`, así `alertMode = SCREEN` (sin
      * sonido) no suena por culpa del canal. El patrón de vibración también lo da el
-     * `Vibrator` (`restVibration`, configurable), no el canal.
+     * `Vibrator` (`restVibration`, configurable), no el canal. La importancia `HIGH` es
+     * la que habilita el heads-up y el full-screen intent.
      */
     fun ensureChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -66,6 +80,15 @@ internal object RestNotifications {
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
         manager.createNotificationChannels(listOf(rest, done))
+        // El canal viejo no se puede reconfigurar (importancia, sonido y visibilidad se
+        // fijan en la primera creación), así que se borra: si queda, el usuario ve dos
+        // "Fin de descanso" en Ajustes y el viejo sigue gobernando notificaciones que el
+        // sistema haya guardado con ese id.
+        try {
+            manager.deleteNotificationChannel(LEGACY_CHANNEL_REST_DONE)
+        } catch (e: RuntimeException) {
+            // Un OEM puede negarse: no rompe nada, el canal vigente es el `_v2`.
+        }
     }
 
     /**
@@ -105,10 +128,15 @@ internal object RestNotifications {
     /**
      * "Descanso terminado": la deja [RestAlerter] siempre, con o sin alerta.
      *
+     * Va como **alarma** (`CATEGORY_ALARM` + `PRIORITY_MAX` + `VISIBILITY_PUBLIC`): es lo
+     * que hace que Android la trate como aviso urgente y no la agrupe ni la silencie con
+     * otras notificaciones de la app. En Android 14+ el *full-screen intent* además exige
+     * que el canal sea de importancia alta (lo es: [CHANNEL_REST_DONE]).
+     *
      * @param fullScreen `true` agrega el *full-screen intent* a [RestDoneActivity]. Sólo
      *   se pide cuando el plan resolvió `FULL_SCREEN_INTENT` **y** el sistema concedió
      *   `USE_FULL_SCREEN_INTENT`: un FSI denegado se ignora en silencio y el aviso
-     *   quedaría sin pantalla.
+     *   quedaría sin pantalla. Si el sistema igual lo niega, queda el heads-up.
      */
     fun postRestDone(context: Context, fullScreen: Boolean) {
         val builder = NotificationCompat.Builder(context, CHANNEL_REST_DONE)
@@ -117,7 +145,7 @@ internal object RestNotifications {
             .setContentText(context.getString(R.string.rest_notif_fin_texto))
             .setContentIntent(openApp(context))
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
         if (fullScreen) builder.setFullScreenIntent(restDone(context), true)
@@ -131,12 +159,13 @@ internal object RestNotifications {
 
     /**
      * `true` si el canal de fin de descanso quedó sin tono (el usuario lo silenció o lo
-     * bajó a "sin importancia"). Ahí `restSound = DEFAULT` tiene que sonar por
-     * `RingtoneManager`: el aviso no puede quedar mudo por una configuración de canal.
+     * bajó a "sin importancia"), o si todavía no existe. Ahí `restSound = DEFAULT` tiene
+     * que sonar por `RingtoneManager`: el aviso no puede quedar mudo por una
+     * configuración de canal.
      */
     fun doneChannelIsSilent(context: Context): Boolean {
-        val manager = context.getSystemService(NotificationManager::class.java) ?: return false
-        val channel = manager.getNotificationChannel(CHANNEL_REST_DONE) ?: return false
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return true
+        val channel = manager.getNotificationChannel(CHANNEL_REST_DONE) ?: return true
         return channel.sound == null || channel.importance == NotificationManager.IMPORTANCE_NONE
     }
 

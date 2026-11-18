@@ -23,6 +23,7 @@ import app.gimcheck.GimCheckApp
 import app.gimcheck.MainActivity
 import app.gimcheck.R
 import app.gimcheck.data.settings.ThemeMode
+import app.gimcheck.ui.components.AlertDiagnosisBlock
 import app.gimcheck.ui.components.PrimaryButton
 import app.gimcheck.ui.theme.GimCheckTheme
 import app.gimcheck.ui.theme.GimSpacing
@@ -52,6 +53,9 @@ class RestDoneActivity : ComponentActivity() {
         // Abrir la pantalla es "interactuar": se corta la repetición y se retira la
         // notificación de la sombra.
         RestAlertCenter.dismiss(this)
+        // Lectura del sistema para el bloque de diagnóstico (GIM-43): se hace una vez,
+        // antes de dibujar, y no depende de que la base esté lista.
+        val diagnosis = RestAlertDiagnostics.collect(this)
         setContent {
             GimCheckTheme(mode = ThemeMode.SYSTEM) {
                 // El próximo ítem se lee de la base cuando la actividad ya está arriba:
@@ -61,6 +65,7 @@ class RestDoneActivity : ComponentActivity() {
                 }
                 RestDoneContent(
                     next = next,
+                    diagnosis = diagnosis,
                     onStart = {
                         startActivity(
                             Intent(this, MainActivity::class.java).addFlags(
@@ -117,7 +122,11 @@ class RestDoneActivity : ComponentActivity() {
 }
 
 @Composable
-private fun RestDoneContent(next: Pair<String, Int>?, onStart: () -> Unit) {
+private fun RestDoneContent(
+    next: Pair<String, Int>?,
+    diagnosis: AlertDiagnosis,
+    onStart: () -> Unit,
+) {
     val colors = GimTheme.colors
     Column(
         modifier = Modifier
@@ -144,6 +153,12 @@ private fun RestDoneContent(next: Pair<String, Int>?, onStart: () -> Unit) {
         PrimaryButton(
             label = stringResource(R.string.rest_done_empezar),
             onClick = onStart,
+            modifier = Modifier.padding(top = GimSpacing.xxl),
+        )
+        // Los cinco datos reales del sistema: es lo que el dueño nos pasa cuando el aviso
+        // no se comporta como espera (GIM-43). No es un mensaje inventado.
+        AlertDiagnosisBlock(
+            diagnosis = diagnosis,
             modifier = Modifier.padding(top = GimSpacing.xxl),
         )
     }

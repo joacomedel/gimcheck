@@ -30,7 +30,7 @@ import org.robolectric.shadows.ShadowNotificationManager
  *    overlay. Acá se verifica el conjunto exacto de acciones y que `NONE` no dispare
  *    ninguna pero **sí** deje la notificación.
  * 2. **Qué notificación sale**: la implementación real con `ShadowNotificationManager`:
- *    el canal `rest_done`, el *full-screen intent* sólo cuando corresponde y **nunca**
+ *    el canal `rest_done_v2`, el *full-screen intent* sólo cuando corresponde y **nunca**
  *    con la app en primer plano.
  *
  * Lo que no se puede verificar acá (lo mira el dueño en su teléfono): que la pantalla se
