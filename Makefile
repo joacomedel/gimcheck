@@ -28,19 +28,20 @@ help:
 check:
 	@./scripts/check-core.sh
 
-## CI corre `:core:test`, `:app:lintDebug` y `:app:assembleDebug` con el Android
-## SDK instalado. Acá sólo se puede el primero: lintDebug y assembleDebug
-## necesitan aapt2/D8 para linux-arm64, que no existe. Este target hace ese paso
-## (sin las guardas del Moto, pensado para comparar contra CI) y deja escrito
-## qué falta y dónde corre.
+## CI corre `:core:test`, `:app:testDebugUnitTest`, `:app:lintDebug` y
+## `:app:assembleDebug` con el Android SDK instalado. Acá sólo se puede el
+## primero: los de `:app` necesitan AGP/aapt2/D8 para linux-arm64, que no
+## existe. Este target hace ese paso (sin las guardas del Moto, pensado para
+## comparar contra CI) y deja escrito qué falta y dónde corre.
 check-ci:
 	@echo "== :core:test (paso 1 de $(WORKFLOW), idéntico al de CI) =="
 	@echo "   acá va con -PcoreOnly: mismo task, sin evaluar :app (AGP necesita SDK)"
 	@$(GRADLE) -PcoreOnly :core:test --stacktrace
 	@echo
 	@echo "== lo que NO corre acá (necesita Android SDK x86_64) =="
-	@echo "  ./gradlew :app:lintDebug      → corre en CI"
-	@echo "  ./gradlew :app:assembleDebug  → corre en CI y publica gimcheck-debug.apk"
+	@echo "  ./gradlew :app:testDebugUnitTest → corre en CI (JVM, sin emulador)"
+	@echo "  ./gradlew :app:lintDebug         → corre en CI"
+	@echo "  ./gradlew :app:assembleDebug     → corre en CI y publica gimcheck-debug.apk"
 	@echo "  ver el run: gh run list --repo $(REPO) --workflow $(WORKFLOW) --limit 5"
 
 ## "Delegar en CI": no hay forma de producir el APK en este equipo. Este target

@@ -34,6 +34,10 @@ android {
 
     buildFeatures {
         compose = true
+        // BuildConfig.APPLICATION_ID lo verifica MainActivitySkeletonTest: es el
+        // único dato del esqueleto que genera el build (en AGP 9 está apagado por
+        // defecto).
+        buildConfig = true
     }
 }
 
@@ -50,4 +54,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    // Tests JVM de :app (`:app:testDebugUnitTest`, sin emulador). Hoy sin
+    // Robolectric: no hace falta contexto ni recursos (ver el KDoc del test).
+    testImplementation(libs.junit4)
 }

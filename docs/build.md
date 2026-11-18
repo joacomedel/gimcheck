@@ -6,7 +6,7 @@ Tres niveles, porque este equipo no puede compilar Android (ver
 | Nivel | Dónde | Comando | Qué cubre |
 |---|---|---|---|
 | L0/L1 (lógica) | Moto | `scripts/check-core.sh` | `:core` (dominio + máquina de estados + JSON), sin Android SDK |
-| L2 (APK) | GitHub Actions | push a `master` / PR | `:core:test` + `:app:lintDebug` + `:app:assembleDebug` + artifact `gimcheck-debug.apk` |
+| L2 (APK + tests de `:app`) | GitHub Actions | push a `master` / PR | `:core:test` + `:app:testDebugUnitTest` + `:app:lintDebug` + `:app:assembleDebug` + artifact `gimcheck-debug.apk` |
 | L3 (dispositivo) | teléfono del dueño | checklist de QA | instalación, alertas de descanso, vibración, sonido, cronómetro con app cerrada |
 
 ## Matriz de versiones final (la que compila en CI)
@@ -97,7 +97,7 @@ make check                     # = ./scripts/check-core.sh (guardas + medición)
 | Target | Qué hace | Dónde corre |
 |---|---|---|
 | `make check` | `scripts/check-core.sh`: compila `:core` y corre sus tests con guardas | Moto |
-| `make check-ci` | el paso que sí se puede correr acá de lo que hace CI (`:core:test`), e imprime los dos que no | Moto (parcial) |
+| `make check-ci` | el paso que sí se puede correr acá de lo que hace CI (`:core:test`), e imprime los tres que no | Moto (parcial) |
 | `make build` | no compila acá: imprime el `gh` exacto para disparar/leer/bajar el APK de CI | CI |
 | `make stop` | `gradle --stop` (libera ~750 MB del daemon) | Moto |
 
@@ -243,10 +243,46 @@ Las guardas se probaron forzando los umbrales, no sólo leyendo el código:
 3. `gradle/actions/setup-gradle@v6` — caché de `~/.gradle`
 4. `android-actions/setup-android@v4` — `platforms;android-37.0` + `build-tools;36.0.0` y `37.0.0`
 5. `./gradlew :core:test`
-6. `./gradlew :app:lintDebug`
-7. `./gradlew :app:assembleDebug`
-8. `actions/upload-artifact@v7` — **name `gimcheck-debug.apk`**,
+6. `./gradlew :app:testDebugUnitTest` — tests JVM de `:app`, **sin emulador**
+7. `./gradlew :app:lintDebug`
+8. `./gradlew :app:assembleDebug`
+9. `actions/upload-artifact@v7` — **name `gimcheck-debug.apk`**,
    `path: app/build/outputs/apk/debug/app-debug.apk`, retención 30 días
+10. `actions/upload-artifact@v7` con `if: failure()` — **name `gimcheck-test-reports`**
+    (`core/build/reports/tests/` y `app/build/reports/tests/`, 7 días). Sólo se
+    crea cuando el run falla; es la forma de ver qué test rompió sin bajar el log.
+
+### Tests unitarios de `:app`
+
+`:app:testDebugUnitTest` corre en JVM (sin emulador, sin `connectedAndroidTest`)
+y **es un paso obligatorio del run**: un test rojo en `:app` pone el run en rojo
+y se saltea el resto. Antes de GIM-35 no existía ningún test de `:app`, así que
+todo lo que venga de DATOS/UI (GIM-9, 10, 11, 20, 21, 24, 25…) se habría cerrado
+con evidencia que no se ejecutaba.
+
+| Pieza | Estado hoy |
+|---|---|
+| Runner | JUnit4 (`testImplementation(libs.junit4)` en `app/build.gradle.kts`) |
+| Tests | `app/src/test/java/app/gimcheck/MainActivitySkeletonTest.kt` (3 tests del esqueleto) |
+| Robolectric | **no se usa todavía**; 4.18 está en el catálogo y se agrega cuando GIM-9 necesite contexto/recursos |
+| Recursos Android en tests | `testOptions.unitTests.isIncludeAndroidResources` **no** está activado (no hace falta sin Robolectric) |
+| `BuildConfig` | activado (`buildFeatures.buildConfig = true`) porque el test verifica `BuildConfig.APPLICATION_ID` |
+
+El test es de esqueleto de verdad, no un `assertTrue(true)`: valida que el
+`applicationId` generado por el build es `app.gimcheck`, que `MainActivity` vive
+en ese package, que extiende `ComponentActivity`, que es pública, concreta y
+declara `onCreate(Bundle)`. Cuando entre Room (GIM-9) el mismo task empieza a
+correr los tests de migración bajo Robolectric sin tocar el workflow: sólo hay
+que agregar la dependencia y activar `isIncludeAndroidResources`.
+
+Los tests van en `app/src/test/java/` (y no `src/test/kotlin/`) a propósito: es
+el directorio de fuentes que AGP siempre registra; Kotlin compila `.kt` ahí sin
+configuración extra.
+
+Verificación de que el paso está cableado (2026-11-18, GIM-35): un commit
+temporal con `assertTrue(false)` en `:app` puso el run en **rojo** y el job se
+cortó en el paso 6; el revert volvió el run a **verde**. Links, tiempos y
+artefacto en la sección siguiente.
 
 Última verificación al escribir esto (2026-11-17): run
 [44203803099](https://github.com/joacomedel/gimcheck/actions/runs/44203803099) en `success` sobre
