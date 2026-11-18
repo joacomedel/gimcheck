@@ -248,7 +248,7 @@ class RutinasViewModel internal constructor(
         val planId = selectedPlanId ?: return
         scope.launch {
             val plan = lastData?.plans?.firstOrNull { it.id == planId }
-            val name = "Día ${(plan?.daysCount ?: 0) + 1}"
+            val name = "Día ${(plan?.days?.size ?: 0) + 1}"
             val id = routines.addDay(planId, name)
             pendingDayId = id
             lastData?.let(::publish)
