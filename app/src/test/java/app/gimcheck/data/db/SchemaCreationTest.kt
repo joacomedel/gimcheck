@@ -91,7 +91,8 @@ class SchemaCreationTest {
             .bufferedReader()
             .use { it.readText() }
         assertTrue("el JSON no declara la version 1", json.contains("\"version\": 1"))
-        EXPECTED_TABLES.forEach { table ->
+        // room_master_table la crea Room en tiempo de ejecución, no está en el schema.
+        EXPECTED_COLUMNS.keys.forEach { table ->
             assertTrue("el schema no declara la tabla $table", json.contains("\"tableName\": \"$table\""))
         }
     }
