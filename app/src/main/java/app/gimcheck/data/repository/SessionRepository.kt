@@ -17,6 +17,7 @@ import app.gimcheck.data.db.SessionEntity
 import app.gimcheck.data.db.SessionSetEntity
 import app.gimcheck.data.db.SessionStateEntity
 import app.gimcheck.data.db.SessionStatus as RowStatus
+import androidx.room.withTransaction
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -61,6 +62,7 @@ class SessionRepository internal constructor(
     private val now: () -> Instant = Instant::now,
 ) {
 
+    private val database = db
     private val sessionDao = db.sessionDao()
     private val sessionSetDao = db.sessionSetDao()
     private val sessionStateDao = db.sessionStateDao()
@@ -174,19 +176,34 @@ class SessionRepository internal constructor(
      * (sigue el cursor cuando otra corrutina lo mueve); **no es la única fuente del
      * estado**: lo que hay que mostrar al abrir lo publica [SessionResumer.resumed]
      * (GIM-39).
+     *
+     * **Cada emisión es una foto completa y fresca** ([guidedNow]): los tres Flows de
+     * abajo sólo avisan que algo cambió. `combine` guarda el último valor de cada uno,
+     * así que armar el estado con esos valores publicaba snapshots mezclados —series
+     * nuevas con el cursor viejo— y la pantalla retrocedía a la ronda/ítem anterior
+     * (GIM-21: "corregir una serie no mueve el cursor"). Leer ahora, con la escritura
+     * de [persistGuided] en una sola transacción, garantiza que lo emitido nunca es
+     * más viejo que lo ya emitido.
      */
     fun observeGuided(): Flow<GuidedSession?> =
         combine(
             sessionDao.observeActive(),
             sessionStateDao.observeActive(),
             sessionSetDao.observeAll(),
-        ) { session, state, sets -> Triple(session, state, sets) }
-            .map { (session, state, sets) ->
-                val row = session ?: return@map null
-                withContext(io) {
-                    reconstruct(row, state, sets.filter { it.sessionId == row.id })
-                }
-            }
+        ) { _, _, _ -> Unit }
+            .map { guidedNow() }
+
+    /**
+     * La misma foto que emite [observeGuided], leída en este instante: sesión `ACTIVE`,
+     * cursor y series en un solo paso.
+     *
+     * Es lo que consume el ViewModel antes de pintar: leerla después de que terminó el
+     * `dispatch` en curso evita que una emisión vieja pise el estado que ya se aplicó.
+     */
+    suspend fun guidedNow(): GuidedSession? = withContext(io) {
+        val row = sessionDao.active() ?: return@withContext null
+        reconstruct(row, sessionStateDao.get(row.id), sessionSetDao.ofSession(row.id))
+    }
 
     /**
      * Rehidratación al abrir la app (§4): lee `session` + `session_state` + las series
@@ -234,6 +251,11 @@ class SessionRepository internal constructor(
     /**
      * Escribe el cursor de [state] como lo pide el efecto `PersistState`.
      *
+     * **Todo en una transacción.** Series y cursor se escriben juntos: si fueran dos
+     * escrituras, `observeGuided` podía leer en el medio y publicar "series nuevas con
+     * el cursor anterior" — la pantalla saltaba al ítem de la superserie y se perdía el
+     * descanso recién arrancado (GIM-21).
+     *
      * Terminal (`FINISHED`/`ABANDONED`): cierra la fila de `session` y guarda el
      * cursor final; así la próxima apertura no rehidrata una sesión terminada.
      */
@@ -242,13 +264,13 @@ class SessionRepository internal constructor(
         when (state.status) {
             CoreStatus.NOT_STARTED -> return
 
-            CoreStatus.RUNNING, CoreStatus.RESTING -> {
+            CoreStatus.RUNNING, CoreStatus.RESTING -> database.withTransaction {
                 ensureSessionRow(state)
                 persistNewSets(state)
                 writeCursor(state, now)
             }
 
-            CoreStatus.FINISHED, CoreStatus.ABANDONED -> {
+            CoreStatus.FINISHED, CoreStatus.ABANDONED -> database.withTransaction {
                 ensureSessionRow(state)
                 persistNewSets(state)
                 writeCursor(state, now)

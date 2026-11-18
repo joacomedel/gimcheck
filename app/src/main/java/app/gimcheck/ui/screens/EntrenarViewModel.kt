@@ -216,9 +216,14 @@ class EntrenarViewModel internal constructor(
     fun start() {
         if (observation != null) return
         observation = scope.launch {
-            combine(sessions.observeGuided(), settings.settings) { guided, readPrefs ->
-                guided to readPrefs
-            }.collect { (guided, readPrefs) -> sync(guided, readPrefs) }
+            // `observeGuided` acá es sólo el aviso de que algo cambió: el estado se lee
+            // con `guidedNow()` **dentro del `gate`**, igual que los `dispatch`. Si se
+            // pintara el valor emitido, una emisión que arrancó antes de un `LogSet`
+            // podía publicarse después y retroceder el cursor (GIM-21).
+            combine(sessions.observeGuided(), settings.settings) { _, readPrefs -> readPrefs }
+                .collect { readPrefs ->
+                    gate.withLock { sync(sessions.guidedNow(), readPrefs) }
+                }
         }
     }
 
@@ -371,19 +376,23 @@ class EntrenarViewModel internal constructor(
         publish()
     }
 
-    internal suspend fun saveCorrectionNow() {
-        val id = editingSetId ?: return
-        val weight = editingWeight ?: return
+    /**
+     * Guarda la corrección en el `gate`: así la reemisión de la base que dispara el
+     * `UPDATE` no pinta la serie corregida antes de que se limpie la edición.
+     */
+    internal suspend fun saveCorrectionNow() = gate.withLock {
+        val id = editingSetId ?: return@withLock
+        val weight = editingWeight ?: return@withLock
         val reps = (editingReps ?: 0.0).roundToInt()
-        if (reps <= 0) return
+        if (reps <= 0) return@withLock
         sessions.updateSet(id, weightKg = weight, reps = reps, rpe = null)
         session = session?.replaceSet(id, weight, reps)
         clearEditing()
         publish()
     }
 
-    internal suspend fun deleteSetNow(setId: String?) {
-        val id = setId ?: return
+    internal suspend fun deleteSetNow(setId: String?) = gate.withLock {
+        val id = setId ?: return@withLock
         sessions.deleteSet(id)
         val current = session
         session = current?.copy(sets = current.sets.filterNot { it.set.id == id })
