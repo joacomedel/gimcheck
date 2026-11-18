@@ -220,8 +220,9 @@ Eventos: `StartSession(sessionId, now)`, `LogSet(weightKg, reps, isWarmup, at, n
 `SkipRest`, `ExtendRest(deltaSecs)`, `Tick(now)`, `Restore(now)`, `FinishSession`,
 `AbandonSession`.
 
-Efectos, en el orden en que se emiten: `PersistState`; `CancelRest` / `StartRest(seconds)`;
-`RestFinished` / `SessionFinished` / `ShowRestDone`; `ShowNextInSuperset` / `ShowNextExercise`.
+Efectos posibles: `PersistState`; `CancelRest` / `StartRest(seconds)`; `RestFinished` /
+`SessionFinished` / `ShowRestDone`; `ShowNextInSuperset` / `ShowNextExercise`. `PersistState`
+va siempre primero y la tabla da el orden exacto del resto en cada transición.
 
 | Estado | Evento | Estado nuevo | Efectos |
 |---|---|---|---|
