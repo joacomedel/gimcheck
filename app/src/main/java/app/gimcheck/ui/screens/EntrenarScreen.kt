@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -48,6 +49,7 @@ import app.gimcheck.ui.components.PrimaryButton
 import app.gimcheck.ui.components.SectionHeader
 import app.gimcheck.ui.components.SetRow
 import app.gimcheck.ui.components.SetStepper
+import app.gimcheck.ui.components.StatTile
 import app.gimcheck.ui.components.TimerRing
 import app.gimcheck.ui.theme.GimHeight
 import app.gimcheck.ui.theme.GimSpacing
@@ -71,12 +73,13 @@ import kotlinx.coroutines.delay
  * mueve la máquina de `:core`. Esta pantalla no sabe cuándo hay descanso; sólo dibuja
  * `state.rest`, que sale de `rest_ends_at`.
  *
- * **Fin de sesión**: al cerrar el último bloque la máquina emite `SessionFinished` y la
- * pantalla muestra el placeholder de fin con "Volver a Hoy". El resumen real (PRs del
- * día, volumen, guardado en historial) es GIM-24; no se agrega una décima ruta porque
- * §8 tiene nueve y el grafo está fijado por test.
+ * **Fin de sesión**: al cerrar el último bloque la máquina emite `SessionFinished`; el
+ * repositorio cierra la sesión con `ended_at` y esta pantalla muestra el resumen real
+ * (duración, volumen, series, PRs del día y volumen por músculo, GIM-24). No se agrega una
+ * décima ruta porque §8 tiene nueve y el grafo está fijado por test.
  *
  * **Salir** pide confirmación (§7.7): la sesión sigue viva, sólo se cierra la pantalla.
+ * **Abandonar** es la otra salida: cierra la sesión como `ABANDONED` y no genera resumen.
  */
 @Composable
 fun EntrenarScreen(
@@ -141,6 +144,7 @@ fun EntrenarScreen(
         onCancelDelete = viewModel::cancelDelete,
         onDelete = viewModel::deleteSet,
         onExit = onExit,
+        onAbandon = { viewModel.abandon(onExit) },
         modifier = modifier,
     )
 }
@@ -163,6 +167,7 @@ private fun EntrenarContent(
     onCancelDelete: () -> Unit,
     onDelete: () -> Unit,
     onExit: () -> Unit,
+    onAbandon: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (state.phase) {
@@ -178,7 +183,7 @@ private fun EntrenarContent(
         }
 
         EntrenarPhase.FINISHED -> EntrenarFinished(
-            sets = state.finishedSets,
+            state = state,
             onExit = onExit,
             modifier = modifier,
         )
@@ -200,6 +205,7 @@ private fun EntrenarContent(
             onCancelDelete = onCancelDelete,
             onDelete = onDelete,
             onExit = onExit,
+            onAbandon = onAbandon,
             modifier = modifier,
         )
     }
@@ -223,14 +229,21 @@ private fun EntrenarActive(
     onCancelDelete: () -> Unit,
     onDelete: () -> Unit,
     onExit: () -> Unit,
+    onAbandon: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = GimTheme.colors
     var confirmingExit by remember { mutableStateOf(false) }
+    var confirmingAbandon by remember { mutableStateOf(false) }
 
-    // Salir no termina la sesión: pide confirmación y vuelve a Hoy (§7.7).
+    // Salir no termina la sesión: pide confirmación y vuelve a Hoy (§7.7). Abandonar sí la
+    // cierra como `ABANDONED`, y por eso va detrás de su propia confirmación (GIM-24).
     BackHandler {
-        if (confirmingExit) confirmingExit = false else confirmingExit = true
+        when {
+            confirmingAbandon -> confirmingAbandon = false
+            confirmingExit -> confirmingExit = false
+            else -> confirmingExit = true
+        }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -306,15 +319,33 @@ private fun EntrenarActive(
 
         Column(modifier = Modifier.padding(horizontal = GimSpacing.l)) {
             Spacer(modifier = Modifier.height(GimSpacing.s))
-            if (confirmingExit) {
-                ConfirmInline(
-                    question = stringResource(R.string.ph_confirmar_salida),
-                    onConfirm = onExit,
-                    onCancel = { confirmingExit = false },
-                    confirmLabel = stringResource(R.string.accion_salir),
+            when {
+                confirmingAbandon -> ConfirmInline(
+                    question = stringResource(R.string.ph_confirmar_abandono),
+                    onConfirm = onAbandon,
+                    onCancel = { confirmingAbandon = false },
+                    confirmLabel = stringResource(R.string.accion_abandonar),
                 )
-            } else {
-                Text(
+
+                confirmingExit -> {
+                    ConfirmInline(
+                        question = stringResource(R.string.ph_confirmar_salida),
+                        onConfirm = onExit,
+                        onCancel = { confirmingExit = false },
+                        confirmLabel = stringResource(R.string.accion_salir),
+                    )
+                    Text(
+                        text = stringResource(R.string.accion_abandonar),
+                        style = GimText.boton,
+                        color = colors.bad,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = GimHeight.row)
+                            .clickable(role = Role.Button) { confirmingAbandon = true },
+                    )
+                }
+
+                else -> Text(
                     text = stringResource(R.string.accion_salir),
                     style = GimText.boton,
                     color = colors.muted,
@@ -617,42 +648,186 @@ private fun EditorAction(
 }
 
 /**
- * Placeholder del **fin de sesión**: series anotadas y vuelta a Hoy.
+ * **Fin de sesión** (GIM-24): resumen de lo que quedó guardado.
  *
- * El resumen real —PRs del día, volumen, duración y guardado en historial— es GIM-24.
+ * Un solo scroll con la jerarquía del contrato: título + día, duración y series en
+ * `StatTile`, volumen total, `SectionHeader` "PRs del día" (una fila por ejercicio con
+ * badge en `good`) y `SectionHeader` "Volumen por músculo" con `Meter` por músculo (top 5).
+ * La acción primaria "Listo" vuelve a Hoy, donde la sesión ya aparece en "Últimos".
+ *
+ * Mientras [EntrenarUiState.summary] se calcula se muestra el título y las series anotadas:
+ * nunca hay números de relleno (`docs/diseno.md` §9).
  */
 @Composable
 private fun EntrenarFinished(
-    sets: Int,
+    state: EntrenarUiState,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = GimTheme.colors
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(GimSpacing.l),
-        verticalArrangement = Arrangement.spacedBy(GimSpacing.m),
+    val summary = state.summary
+    Column(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = GimSpacing.l),
+            contentPadding = PaddingValues(top = GimSpacing.l, bottom = GimSpacing.l),
+            verticalArrangement = Arrangement.spacedBy(GimSpacing.s),
+        ) {
+            item {
+                Column {
+                    Text(
+                        text = stringResource(R.string.entrenar_fin_titulo),
+                        style = GimText.titulo,
+                        color = colors.ink,
+                    )
+                    Text(
+                        text = summary?.dayName ?: state.dayName,
+                        style = GimText.detalle,
+                        color = colors.muted,
+                        maxLines = 1,
+                    )
+                }
+            }
+
+            if (summary == null) {
+                item {
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.hoy_series,
+                            state.finishedSets,
+                            state.finishedSets,
+                        ),
+                        style = GimText.detalle,
+                        color = colors.muted,
+                    )
+                }
+            } else {
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(GimSpacing.s)) {
+                        StatTile(
+                            k = stringResource(R.string.entrenar_fin_duracion),
+                            v = summary.durationLabel,
+                            modifier = Modifier.weight(1f),
+                        )
+                        StatTile(
+                            k = stringResource(R.string.entrenar_fin_series),
+                            v = summary.setsLabel,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                item {
+                    StatTile(
+                        k = stringResource(R.string.entrenar_fin_volumen),
+                        v = summary.volumeLabel,
+                        s = summary.dayName,
+                    )
+                }
+
+                item { SectionHeader(title = stringResource(R.string.entrenar_fin_prs)) }
+                if (summary.prs.isEmpty()) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.entrenar_fin_sin_prs),
+                            style = GimText.detalle,
+                            color = colors.muted,
+                        )
+                    }
+                } else {
+                    items(summary.prs) { pr -> PrRow(pr) }
+                }
+
+                if (summary.muscles.isNotEmpty()) {
+                    item { SectionHeader(title = stringResource(R.string.entrenar_fin_musculos)) }
+                    items(summary.muscles) { muscle -> MuscleVolumeRow(muscle) }
+                }
+
+                item {
+                    Text(
+                        text = stringResource(R.string.entrenar_fin_guardado),
+                        style = GimText.etiqueta,
+                        color = colors.muted,
+                    )
+                }
+            }
+        }
+
+        Column(modifier = Modifier.padding(horizontal = GimSpacing.l)) {
+            PrimaryButton(
+                label = stringResource(R.string.accion_listo),
+                onClick = onExit,
+            )
+            Spacer(modifier = Modifier.height(GimSpacing.l))
+        }
+    }
+}
+
+/** Un PR del día: ejercicio y peso×reps a la izquierda, e1RM y badge a la derecha. */
+@Composable
+private fun PrRow(pr: EntrenarPrUi) {
+    val colors = GimTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = GimHeight.row),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = pr.exerciseName,
+                style = GimText.cuerpo,
+                color = colors.ink,
+                maxLines = 1,
+            )
+            Text(
+                text = pr.setLabel,
+                style = GimText.detalle,
+                color = colors.muted,
+                maxLines = 1,
+            )
+        }
         Text(
-            text = stringResource(R.string.entrenar_fin_titulo),
-            style = GimText.titulo,
+            text = pr.e1rmLabel,
+            style = GimText.subtitulo,
             color = colors.ink,
+            maxLines = 1,
         )
         Text(
-            text = pluralStringResource(R.plurals.hoy_series, sets, sets),
-            style = GimText.detalle,
-            color = colors.muted,
+            text = stringResource(R.string.entrenar_fin_pr_badge),
+            style = GimText.etiqueta,
+            color = colors.good,
+            maxLines = 1,
+            modifier = Modifier.padding(start = GimSpacing.s),
         )
-        Text(
-            text = stringResource(R.string.entrenar_fin_detalle),
-            style = GimText.cuerpo,
-            color = colors.ink2,
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        PrimaryButton(
-            label = stringResource(R.string.accion_volver_hoy),
-            onClick = onExit,
+    }
+}
+
+/** Una fila de volumen por músculo: nombre, series efectivas y `Meter` (§6 #6). */
+@Composable
+private fun MuscleVolumeRow(muscle: EntrenarMuscleUi) {
+    val colors = GimTheme.colors
+    Column(verticalArrangement = Arrangement.spacedBy(GimSpacing.xs)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = muscle.name,
+                style = GimText.detalle,
+                color = colors.ink2,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = muscle.setsLabel,
+                style = GimText.detalle,
+                color = colors.ink,
+                maxLines = 1,
+            )
+        }
+        Meter(
+            value = muscle.fraction,
+            max = 1f,
+            color = colors.accent,
         )
     }
 }

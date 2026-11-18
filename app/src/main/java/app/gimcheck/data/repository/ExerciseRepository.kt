@@ -42,6 +42,15 @@ class ExerciseRepository internal constructor(
 
     suspend fun muscles(): List<Muscle> = withContext(io) { muscleDao.all().map { it.toDomain() } }
 
+    /**
+     * Catálogo completo con secundarios, en una foto. Lo usan los cálculos de `:core` que
+     * necesitan `loadType`/`primaryMuscleId` fuera de un Flow (resumen de fin de sesión).
+     */
+    suspend fun all(): List<Exercise> = withContext(io) {
+        val byExercise = exerciseDao.allSecondaries().groupBy { it.exerciseId }
+        exerciseDao.all().map { row -> row.toDomain(byExercise[row.id].orEmpty()) }
+    }
+
     suspend fun exercise(id: String): Exercise? = withContext(io) {
         val row = exerciseDao.getById(id) ?: return@withContext null
         row.toDomain(exerciseDao.secondariesOf(id))

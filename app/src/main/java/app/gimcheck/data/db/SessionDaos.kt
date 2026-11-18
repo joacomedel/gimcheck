@@ -31,6 +31,19 @@ internal interface SessionDao {
     @Query("SELECT * FROM session ORDER BY started_at DESC")
     fun observeHistory(): Flow<List<SessionEntity>>
 
+    /**
+     * Histórico de sesiones **terminadas**, más reciente primero.
+     *
+     * Excluye `ABANDONED` a propósito: una sesión abandonada conserva sus series (§2) pero
+     * no es un entrenamiento, así que no aparece en "Últimos" de Hoy ni alimenta los PR
+     * del día siguiente (GIM-24).
+     */
+    @Query("SELECT * FROM session WHERE status = 'FINISHED' ORDER BY started_at DESC")
+    fun observeFinishedHistory(): Flow<List<SessionEntity>>
+
+    @Query("SELECT * FROM session WHERE status = 'FINISHED' ORDER BY started_at DESC")
+    suspend fun finishedHistory(): List<SessionEntity>
+
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Upsert
     suspend fun upsert(session: SessionEntity)
@@ -81,6 +94,10 @@ internal interface SessionSetDao {
     /** Todas las series de todas las sesiones: el histórico se arma con un solo Flow. */
     @Query("SELECT * FROM session_set ORDER BY session_id, completed_at, round_index, set_index")
     fun observeAll(): Flow<List<SessionSetEntity>>
+
+    /** Foto de todas las series (el resumen de fin de sesión no necesita un Flow). */
+    @Query("SELECT * FROM session_set ORDER BY session_id, completed_at, round_index, set_index")
+    suspend fun all(): List<SessionSetEntity>
 
     /** Series de trabajo de un ejercicio, en orden: insumo del PR (§3.1). */
     @Query("SELECT * FROM session_set WHERE exercise_id = :exerciseId AND is_warmup = 0 ORDER BY completed_at")

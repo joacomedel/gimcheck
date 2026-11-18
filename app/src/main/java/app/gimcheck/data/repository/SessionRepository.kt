@@ -82,6 +82,26 @@ class SessionRepository internal constructor(
             sessions.map { row -> row.toDomain(bySession[row.id].orEmpty()) }
         }
 
+    /**
+     * Solo las sesiones **terminadas** (`FINISHED`), más reciente primero, con sus series.
+     *
+     * Es el histórico que ve el producto: "Últimos" de Hoy (GIM-24), el insumo de los PR del
+     * día (una abandonada no fija récords) y, más adelante, la pantalla de Historial. La
+     * sesión abandonada sigue en la base con sus series —§2 no borra nada— pero no cuenta
+     * como entrenamiento.
+     */
+    fun observeFinishedHistory(): Flow<List<Session>> =
+        combine(sessionDao.observeFinishedHistory(), sessionSetDao.observeAll()) { sessions, sets ->
+            val bySession = sets.groupBy { it.sessionId }
+            sessions.map { row -> row.toDomain(bySession[row.id].orEmpty()) }
+        }
+
+    /** Foto del histórico terminado, para el resumen de fin de sesión (GIM-24). */
+    suspend fun finishedHistory(): List<Session> = withContext(io) {
+        val bySession = sessionSetDao.all().groupBy { it.sessionId }
+        sessionDao.finishedHistory().map { row -> row.toDomain(bySession[row.id].orEmpty()) }
+    }
+
     fun observeSets(sessionId: String): Flow<List<SessionSet>> =
         sessionSetDao.observeOfSession(sessionId).map { rows -> rows.map { it.toDomain() } }
 

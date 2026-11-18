@@ -131,6 +131,7 @@ class EntrenarViewModelTest {
         viewModel = EntrenarViewModel(
             sessions = sessions,
             settings = settings,
+            exercises = exercises,
             scope = scope,
             now = { Instants.fromEpochMillis(clock.toEpochMilli(), zone) },
             nowInstant = { clock },

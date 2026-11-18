@@ -1,6 +1,7 @@
 package app.gimcheck.ui.screens
 
 import app.gimcheck.AppContainer
+import app.gimcheck.core.AbandonSession
 import app.gimcheck.core.DayItem
 import app.gimcheck.core.ExtendRest
 import app.gimcheck.core.GuidedSession
@@ -12,7 +13,13 @@ import app.gimcheck.core.SessionStatus
 import app.gimcheck.core.SessionTransition
 import app.gimcheck.core.SkipRest
 import app.gimcheck.core.Tick
+import app.gimcheck.core.formatDuration
 import app.gimcheck.core.formatNumber
+import app.gimcheck.core.historicalBestByExercise
+import app.gimcheck.core.sessionE1rm
+import app.gimcheck.core.sessionVolume
+import app.gimcheck.core.sessionVolumeByMuscle
+import app.gimcheck.data.repository.ExerciseRepository
 import app.gimcheck.data.repository.SessionRepository
 import app.gimcheck.data.repository.SettingsRepository
 import app.gimcheck.data.settings.AppSettings
@@ -26,6 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.toJavaLocalDateTime
 import kotlinx.datetime.toKotlinLocalDateTime
 import java.time.Duration
 import java.time.Instant
@@ -91,6 +99,51 @@ data class EntrenarSetsUi(
 )
 
 /**
+ * Un **PR del día**: la mejor serie del ejercicio que superó su máximo previo.
+ *
+ * @param setLabel `82,5 kg × 5`, ya formateado (coma decimal).
+ * @param e1rmLabel e1RM de esa serie con la fórmula del ajuste (`e1rmFormula`).
+ */
+data class EntrenarPrUi(
+    val exerciseId: String,
+    val exerciseName: String,
+    val setLabel: String,
+    val e1rmLabel: String,
+)
+
+/**
+ * Una barra de **volumen por músculo del día**: series efectivas de `:core`
+ * (`sessionVolumeByMuscle`, la misma unidad que el análisis semanal).
+ *
+ * @param fraction valor sobre el músculo que más series recibió, para el `Meter`.
+ */
+data class EntrenarMuscleUi(
+    val muscleId: String,
+    val name: String,
+    val setsLabel: String,
+    val fraction: Float,
+)
+
+/**
+ * Resumen de **fin de sesión** (GIM-24): todo calculado con `:core` sobre las series que
+ * quedaron guardadas, no con una segunda fórmula en la UI.
+ *
+ * @param durationLabel duración real (`started_at` → `ended_at`) en el formato del contrato.
+ * @param volumeLabel volumen total del día en kg (`sessionVolume`).
+ * @param setsLabel series de trabajo anotadas (sin calentamientos).
+ * @param prs un PR por ejercicio, o vacío si el día no rompió nada.
+ * @param muscles top 5 de series efectivas por músculo.
+ */
+data class EntrenarSummaryUi(
+    val dayName: String,
+    val durationLabel: String,
+    val volumeLabel: String,
+    val setsLabel: String,
+    val prs: List<EntrenarPrUi>,
+    val muscles: List<EntrenarMuscleUi>,
+)
+
+/**
  * Todo lo que dibuja **Entrenar** (§6 fila 2, `docs/diseno.md` §8 #2).
  *
  * Los números ya vienen formateados del ViewModel (coma decimal, `kg`), igual que en
@@ -137,8 +190,10 @@ data class EntrenarUiState(
     val confirmingDelete: Boolean = false,
     /** Ajuste `keepScreenOn` de §8: la pantalla mantiene el equipo despierto. */
     val keepScreenOn: Boolean = true,
-    /** Series anotadas en total, para el placeholder de fin (el resumen real es GIM-24). */
+    /** Series de trabajo anotadas, para el fin de sesión mientras carga el resumen. */
     val finishedSets: Int = 0,
+    /** Resumen de fin de sesión (GIM-24); `null` mientras se calcula. */
+    val summary: EntrenarSummaryUi? = null,
 )
 
 /**
@@ -167,10 +222,21 @@ data class EntrenarUiState(
  * ítem en la sesión; si no hay, la última serie de trabajo del ejercicio en el
  * histórico (sólo con `autoFillLast = true`); si tampoco, el peso por defecto o las reps
  * objetivo del ítem.
+ *
+ * **Fin de sesión (GIM-24)**: cuando la máquina emite `SessionFinished`, el repositorio ya
+ * cerró la fila con `ended_at` y estado `FINISHED`. Acá se arma [EntrenarSummaryUi] leyendo
+ * esa sesión de la base y pasándola por `:core` (`sessionVolume`, `sessionE1rm` contra el
+ * histórico anterior, `sessionVolumeByMuscle`). No hay números propios: si el resumen dice
+ * 1.240 kg, es lo que devuelve `sessionVolume` para las mismas series.
+ *
+ * **Abandonar** ([abandon]) dispatcha `AbandonSession`: la máquina no emite
+ * `SessionFinished`, así que no hay resumen ni PRs; el repositorio deja la sesión
+ * `ABANDONED` con sus series guardadas.
  */
 class EntrenarViewModel internal constructor(
     private val sessions: SessionRepository,
     private val settings: SettingsRepository,
+    private val exercises: ExerciseRepository,
     private val scope: CoroutineScope,
     private val now: () -> LocalDateTime = { java.time.LocalDateTime.now().toKotlinLocalDateTime() },
     private val nowInstant: () -> Instant = Instant::now,
@@ -180,6 +246,7 @@ class EntrenarViewModel internal constructor(
     constructor(container: AppContainer, scope: CoroutineScope) : this(
         sessions = container.sessions,
         settings = container.settings,
+        exercises = container.exercises,
         scope = scope,
     )
 
@@ -191,6 +258,7 @@ class EntrenarViewModel internal constructor(
     ) : this(
         sessions = container.sessions,
         settings = container.settings,
+        exercises = container.exercises,
         scope = scope,
         restGateway = restGateway,
     )
@@ -210,6 +278,12 @@ class EntrenarViewModel internal constructor(
 
     /** Estado terminal retenido: al cerrar la sesión, `observeGuided` deja de emitir. */
     private var finishedState: GuidedSession? = null
+
+    /** Resumen de fin de sesión ya calculado (se arma una sola vez por sesión). */
+    private var summary: EntrenarSummaryUi? = null
+
+    /** Sesión a la que pertenece [summary]; si cambia la sesión viva, se descarta. */
+    private var summarySessionId: String? = null
 
     private var prefs: AppSettings = AppSettings.DEFAULT
 
@@ -339,9 +413,24 @@ class EntrenarViewModel internal constructor(
         scope.launch { deleteSetNow(editingSetId) }
     }
 
+    /**
+     * Abandona la sesión desde Entrenar: `AbandonSession` sin `SessionFinished`, así que no
+     * hay resumen ni PRs. Las series quedan guardadas en la base (la sesión queda
+     * `ABANDONED`) y [onDone] sale de la pantalla.
+     */
+    fun abandon(onDone: () -> Unit = {}) {
+        scope.launch {
+            abandonNow()
+            onDone()
+        }
+    }
+
     // --- implementación (suspend: los usan los tests sin esperar corrutinas) ------
 
     internal suspend fun logSetNow() {
+        // La sesión ya cerró: un toque tardío no puede finalizarla dos veces (§4: los
+        // eventos fuera de estado devuelven el mismo estado y `persistGuided` no escribe).
+        if (finishedState != null) return
         val guided = session ?: return
         val item = guided.currentItem ?: return
         val reps = (draftReps ?: 0.0).roundToInt()
@@ -371,6 +460,9 @@ class EntrenarViewModel internal constructor(
             preloadIfNeeded(transition.state)
             publish()
         }
+        // Última serie del último bloque: el repositorio ya cerró la fila con `ended_at`.
+        // El resumen se calcula sobre lo guardado y se publica cuando está.
+        if (finishedState != null) loadSummary()
     }
 
     internal suspend fun skipRestNow() {
@@ -422,6 +514,79 @@ class EntrenarViewModel internal constructor(
         publish()
     }
 
+    internal suspend fun abandonNow() = gate.withLock {
+        val guided = session ?: return@withLock
+        val transition = sessions.dispatch(guided, AbandonSession, nowInstant())
+        apply(transition)
+        summary = null
+        publish()
+    }
+
+    /**
+     * Arma [EntrenarSummaryUi] desde la sesión **persistida** y `:core`.
+     *
+     * Todo sale de las mismas series que guardó la máquina: volumen (`sessionVolume` con el
+     * `loadType` del catálogo y el peso corporal de la sesión), series de trabajo, PRs
+     * (`sessionE1rm` contra el histórico terminado **anterior**, un PR por ejercicio) y
+     * series efectivas por músculo (`sessionVolumeByMuscle`, top [MUSCLES_TOP]).
+     */
+    private suspend fun loadSummary() {
+        val finished = finishedState ?: return
+        if (summary != null) return
+        val stored = sessions.session(finished.sessionId) ?: return
+        val core = prefs.toCoreSettings()
+        val catalog = exercises.all()
+        val exerciseById = catalog.associateBy { it.id }
+        val muscleNames = exercises.muscles().associate { it.id to it.name }
+
+        val priorBest = historicalBestByExercise(
+            sessions.finishedHistory().filter { it.id != stored.id },
+            core.e1rmFormula,
+        )
+        val prs = sessionE1rm(stored, priorBest, core)
+            .filter { it.isPr }
+            .groupBy { it.set.exerciseId }
+            .values
+            .mapNotNull { sets -> sets.maxByOrNull { it.value } }
+            .map { pr ->
+                EntrenarPrUi(
+                    exerciseId = pr.set.exerciseId,
+                    exerciseName = exerciseById[pr.set.exerciseId]?.name ?: pr.set.exerciseId,
+                    setLabel = formatNumber(pr.set.weightKg) + " kg × " + pr.set.reps,
+                    e1rmLabel = formatNumber(pr.value) + " kg",
+                )
+            }
+
+        val byMuscle = sessionVolumeByMuscle(listOf(stored), catalog, core).values
+            .sortedByDescending { it.total(core.includeIndirect) }
+            .take(MUSCLES_TOP)
+        val top = byMuscle.firstOrNull()?.total(core.includeIndirect)?.takeIf { it > 0.0 } ?: 1.0
+        val muscles = byMuscle.map { row ->
+            val value = row.total(core.includeIndirect)
+            EntrenarMuscleUi(
+                muscleId = row.muscleId,
+                name = muscleNames[row.muscleId] ?: row.muscleId,
+                setsLabel = formatNumber(value),
+                fraction = (value / top).toFloat(),
+            )
+        }
+
+        val durationSeconds = stored.endedAt?.let { ended ->
+            Duration.between(stored.startedAt.toJavaLocalDateTime(), ended.toJavaLocalDateTime()).seconds
+        } ?: 0L
+
+        summary = EntrenarSummaryUi(
+            dayName = finished.day.name,
+            durationLabel = formatDuration(durationSeconds),
+            volumeLabel = formatNumber(sessionVolume(stored, catalog, core)) + " kg",
+            setsLabel = stored.sets.count { !it.isWarmup }.toString(),
+            prs = prs,
+            muscles = muscles,
+        )
+        summarySessionId = stored.id
+        publish()
+    }
+
     // --- proyección a la UI ------------------------------------------------------
 
     /**
@@ -434,6 +599,12 @@ class EntrenarViewModel internal constructor(
             publish()
             return
         }
+        if (guided != null && summarySessionId != null && guided.sessionId != summarySessionId) {
+            // Otra sesión (p. ej. se descartó la anterior y se arrancó de nuevo): el
+            // resumen de la anterior no se puede reusar.
+            summary = null
+            summarySessionId = null
+        }
         session = guided
         // El cronómetro de afuera sigue al `rest_ends_at` de la base, no a la pantalla:
         // un descanso que venía corriendo con la app cerrada se retoma en el mismo
@@ -441,6 +612,8 @@ class EntrenarViewModel internal constructor(
         updateRestGateway(guided)
         if (guided == null) {
             draftItemId = null
+            summary = null
+            summarySessionId = null
             clearEditing()
             _state.value = EntrenarUiState(
                 loading = false,
@@ -541,11 +714,16 @@ class EntrenarViewModel internal constructor(
                 canLogSet = false,
                 finishedSets = finished.sets.count { !it.set.isWarmup },
                 keepScreenOn = prefs.keepScreenOn,
+                summary = summary,
             )
             return
         }
         val guided = session
-        if (guided == null) {
+        if (guided == null || guided.status == SessionStatus.ABANDONED) {
+            // Abandonada: no hay resumen ni PRs; la pantalla vuelve a "sin sesión" y la
+            // navegación la saca a Hoy.
+            summary = null
+            summarySessionId = null
             _state.value = EntrenarUiState(
                 loading = false,
                 phase = EntrenarPhase.NO_SESSION,
@@ -658,5 +836,8 @@ class EntrenarViewModel internal constructor(
 
         /** Etiqueta del peso en un ejercicio de peso corporal sin lastre. */
         const val BODYWEIGHT_LABEL: String = "corporal"
+
+        /** Músculos que muestra el resumen: el top 5 del día (GIM-24). */
+        const val MUSCLES_TOP: Int = 5
     }
 }

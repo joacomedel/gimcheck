@@ -166,7 +166,9 @@ class HoyViewModel internal constructor(
                 routines.observeRoutines(),
                 exercises.observeExercises(),
                 settings.settings,
-                sessions.observeHistory(),
+                // Solo terminadas: una sesión abandonada conserva sus series pero no es un
+                // entrenamiento, así que no aparece en "Últimos" (GIM-24).
+                sessions.observeFinishedHistory(),
                 metrics.observeAll(),
             ) { plans, catalog, prefs, history, bodyMetrics ->
                 HoyData(plans, catalog, prefs, history, bodyMetrics, resumer.resumed.value)

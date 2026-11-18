@@ -132,7 +132,17 @@
     <string name="entrenar_sin_sesion">No hay una sesión abierta.</string>
     <string name="accion_volver_hoy">Volver a Hoy</string>
     <string name="entrenar_fin_titulo">Sesión terminada</string>
-    <string name="entrenar_fin_detalle">El resumen de la sesión llega en la próxima versión.</string>
+    <string name="entrenar_fin_duracion">Duración</string>
+    <string name="entrenar_fin_series">Series</string>
+    <string name="entrenar_fin_volumen">Volumen</string>
+    <string name="entrenar_fin_prs">PRs del día</string>
+    <string name="entrenar_fin_sin_prs">Sin PRs hoy.</string>
+    <string name="entrenar_fin_pr_badge">PR</string>
+    <string name="entrenar_fin_musculos">Volumen por músculo</string>
+    <string name="entrenar_fin_guardado">Se guardó en Historial.</string>
+    <string name="accion_listo">Listo</string>
+    <string name="accion_abandonar">Abandonar sesión</string>
+    <string name="ph_confirmar_abandono">¿Abandonar la sesión? Se guardan las series, pero no cuenta como entrenamiento.</string>
 
     <!--
       Cronómetro de descanso fuera de la pantalla (GIM-22). El texto de la notificación

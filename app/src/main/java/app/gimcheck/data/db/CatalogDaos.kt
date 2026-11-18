@@ -79,6 +79,10 @@ internal interface ExerciseDao {
     @Query("SELECT * FROM exercise_secondary ORDER BY exercise_id, muscle_id")
     fun observeAllSecondaries(): Flow<List<ExerciseSecondaryEntity>>
 
+    /** Foto de todos los secundarios (catálogo fuera de un Flow). */
+    @Query("SELECT * FROM exercise_secondary ORDER BY exercise_id, muscle_id")
+    suspend fun allSecondaries(): List<ExerciseSecondaryEntity>
+
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Upsert
     suspend fun upsertExercise(exercise: ExerciseEntity)
