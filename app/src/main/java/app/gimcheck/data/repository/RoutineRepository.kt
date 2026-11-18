@@ -236,6 +236,19 @@ class RoutineRepository internal constructor(
         dayDao.updateItem(item.toEntity(dayId, current.position))
     }
 
+    /**
+     * Reemplaza todos los ítems de un día en el orden dado: es el guardado del editor
+     * del día (GIM-17), un solo camino para agregar, mover, quitar y editar series.
+     *
+     * La validación de dominio la hace el llamador (`validateDay` de `:core`) para poder
+     * mostrar el error tipado **antes** de tocar la base. El DAO igual aplica las
+     * invariantes de §2 (`sets ∈ 1..20` y `superset_next` limpio en el último ítem), así
+     * que un borrador inconsistente no puede quedar persistido.
+     */
+    suspend fun saveDayItems(dayId: String, items: List<DayItem>) = withContext(io) {
+        dayDao.replaceItems(dayId, items.mapIndexed { index, item -> item.toEntity(dayId, index) })
+    }
+
     suspend fun removeItem(itemId: String) = withContext(io) {
         dayDao.removeItem(itemId)
     }

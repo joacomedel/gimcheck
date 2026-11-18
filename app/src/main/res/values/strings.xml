@@ -172,6 +172,33 @@
     <string name="accion_guardar">Guardar</string>
     <string name="rutinas_item_meta">%1$s · %2$s</string>
 
+    <!--
+      Editor del día (GIM-17): agrega, mueve, quita y ajusta ítems sobre una copia; el
+      guardado es explícito y sólo si `validateDay` de :core no encuentra nada. Los
+      textos de advertencia y de error los arma el ViewModel (necesitan los nombres de
+      músculo), no la pantalla.
+    -->
+    <string name="rutinas_editar_dia">Editar día</string>
+    <string name="rutinas_editor">Editor del día</string>
+    <string name="rutinas_editor_guardar">Guardar cambios</string>
+    <string name="rutinas_editor_descartar">Descartar</string>
+    <string name="rutinas_editor_agregar">Agregar ejercicio</string>
+    <string name="rutinas_editor_elegir">Elegí un ejercicio</string>
+    <string name="rutinas_editor_cerrar">Cerrar</string>
+    <string name="rutinas_editor_series">Series</string>
+    <string name="rutinas_editor_drop_set">Drop set</string>
+    <string name="rutinas_editor_superserie">Superserie con el siguiente</string>
+    <string name="rutinas_editor_superserie_ultimo">En el último ítem no hay con qué encadenar.</string>
+    <string name="rutinas_editor_quitar">Quitar</string>
+    <string name="rutinas_editor_quitar_pregunta">¿Quitar «%1$s» del día?</string>
+    <string name="rutinas_editor_subir">Subir</string>
+    <string name="rutinas_editor_bajar">Bajar</string>
+    <string name="rutinas_editor_error_titulo">No se puede guardar</string>
+    <string name="rutinas_editor_rechazado">No se guardó: corregí lo marcado.</string>
+    <string name="rutinas_editor_vacio">Este día no tiene ejercicios: agregá el primero.</string>
+    <string name="rutinas_editor_sin_catalogo">El catálogo está vacío.</string>
+    <string name="rutinas_editor_nota">Drop set suma una bajada de trabajo al final del ítem; superserie encadena el ítem con el siguiente para calcular el descanso del bloque.</string>
+
     <plurals name="rutinas_dias_count">
         <item quantity="one">%1$d día</item>
         <item quantity="other">%1$d días</item>

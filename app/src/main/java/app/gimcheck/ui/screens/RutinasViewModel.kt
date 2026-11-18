@@ -1,15 +1,26 @@
 package app.gimcheck.ui.screens
 
 import app.gimcheck.AppContainer
+import app.gimcheck.core.DayItem
+import app.gimcheck.core.DuplicateSecondary
+import app.gimcheck.core.EditorError
+import app.gimcheck.core.Exercise
 import app.gimcheck.core.Muscle
+import app.gimcheck.core.NegativeRestOverride
 import app.gimcheck.core.Routine
 import app.gimcheck.core.RoutineDay
+import app.gimcheck.core.SecondaryFactorOutOfRange
+import app.gimcheck.core.SetsOutOfRange
 import app.gimcheck.core.Settings
+import app.gimcheck.core.SupersetOnLastItem
 import app.gimcheck.core.dayStats
+import app.gimcheck.core.effectiveSets
 import app.gimcheck.core.exportPlan
 import app.gimcheck.core.formatDuration
+import app.gimcheck.core.formatNumber
 import app.gimcheck.core.heavyPairs
 import app.gimcheck.core.supersetConflicts
+import app.gimcheck.core.validateDay
 import app.gimcheck.data.repository.ExerciseRepository
 import app.gimcheck.data.repository.RoutineRepository
 import app.gimcheck.data.repository.SettingsRepository
@@ -21,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 /**
  * Estado de **Rutinas** (§6 fila 4, GIM-16): planes, días y el detalle de un día.
@@ -34,7 +46,9 @@ import kotlinx.coroutines.launch
  *
  * **Cero cálculo en la pantalla**: duración y series salen de [dayStats], los totales del
  * plan de sumar los de sus días, y las advertencias de [supersetConflicts]/[heavyPairs].
- * El detalle es **solo lectura**: el editor del día es GIM-17.
+ * El detalle se muestra solo lectura hasta que la pantalla entra en modo edición
+ * (GIM-17): ahí el borrador vive acá, se valida con [validateDay] y sólo se escribe en
+ * [saveEdit].
  */
 data class RutinasUiState(
     val loading: Boolean = true,
@@ -51,6 +65,12 @@ data class RutinasUiState(
     val day: RutinaDayDetailUi? = null,
     /** `false` si es el único plan: "Eliminar" no está disponible (§1.1). */
     val canDeletePlan: Boolean = false,
+    /**
+     * Editor del día (GIM-17); `null` = el detalle se muestra solo lectura. Mientras no
+     * sea `null`, el borrador manda: las métricas, las advertencias y los errores son
+     * del borrador y no del día guardado.
+     */
+    val editor: DiaEditorUiState? = null,
 )
 
 /**
@@ -116,6 +136,7 @@ class RutinasViewModel internal constructor(
     private val exercises: ExerciseRepository,
     private val settings: SettingsRepository,
     private val scope: CoroutineScope,
+    private val newItemId: () -> String = { UUID.randomUUID().toString() },
 ) {
 
     constructor(container: AppContainer, scope: CoroutineScope) : this(
@@ -145,6 +166,19 @@ class RutinasViewModel internal constructor(
     private var observation: Job? = null
     private var lastData: RutinasData? = null
 
+    /**
+     * Borrador del editor (GIM-17). `null` = el día se mira, no se edita. Sólo se escribe
+     * en la base en [saveEdit], y sólo si `validateDay` no encuentra nada.
+     */
+    private var draft: List<DayItem>? = null
+
+    /** El día que resuelve [publish] en la última emisión; el editor trabaja sobre éste. */
+    private var selectedDay: RoutineDay? = null
+    private var draftDirty: Boolean = false
+    private var saving: Boolean = false
+    private var rejected: Boolean = false
+    private var picking: Boolean = false
+
     /** Empieza a observar repositorios. Idempotente: la pantalla la llama una vez. */
     fun start() {
         if (observation != null) return
@@ -152,10 +186,18 @@ class RutinasViewModel internal constructor(
             combine(
                 routines.observeRoutines(),
                 exercises.observeMuscles(),
+                exercises.observeExercises(),
                 settings.settings,
                 settings.activeRoutineId,
-            ) { plans, muscles, prefs, activeId ->
-                RutinasData(plans, muscles, prefs, activeId, muscles.associate { it.id to it.name })
+            ) { plans, muscles, catalog, prefs, activeId ->
+                RutinasData(
+                    plans = plans,
+                    muscles = muscles,
+                    exercises = catalog,
+                    preferences = prefs,
+                    activeId = activeId,
+                    muscleNames = muscles.associate { it.id to it.name },
+                )
             }.collect { data ->
                 lastData = data
                 publish(data)
@@ -175,6 +217,7 @@ class RutinasViewModel internal constructor(
         if (planId == selectedPlanId) return
         selectedPlanId = planId
         selectedDayId = null
+        clearDraft()
         lastData?.let(::publish)
     }
 
@@ -182,6 +225,7 @@ class RutinasViewModel internal constructor(
     fun selectDay(dayId: String) {
         if (dayId == selectedDayId) return
         selectedDayId = dayId
+        clearDraft()
         lastData?.let(::publish)
     }
 
@@ -276,8 +320,176 @@ class RutinasViewModel internal constructor(
             routines.deleteDay(dayId)
             if (selectedDayId == dayId) selectedDayId = null
             if (pendingDayId == dayId) pendingDayId = null
+            if (selectedDay?.id == dayId) clearDraft()
             lastData?.let(::publish)
         }
+    }
+
+    // --- editor del día (GIM-17) -------------------------------------------------
+
+    /**
+     * Entra en modo edición con una copia del día guardado. Nada se escribe hasta
+     * [saveEdit]: todo lo de acá para abajo mueve el borrador.
+     */
+    fun startEdit() {
+        val data = lastData ?: return
+        val day = selectedDay ?: return
+        draft = withSupersetInvariant(day.items)
+        draftDirty = false
+        saving = false
+        rejected = false
+        picking = false
+        publish(data)
+    }
+
+    /** Sale del editor descartando el borrador; el día guardado queda como estaba. */
+    fun cancelEdit() {
+        if (draft == null) return
+        clearDraft()
+        lastData?.let(::publish)
+    }
+
+    /** Abre y cierra el selector de ejercicio del catálogo. */
+    fun openPicker() {
+        if (draft == null || picking) return
+        picking = true
+        lastData?.let(::publish)
+    }
+
+    fun closePicker() {
+        if (!picking) return
+        picking = false
+        lastData?.let(::publish)
+    }
+
+    /**
+     * Agrega el ejercicio al final del día con [DEFAULT_SETS] series (3, como la web) y
+     * cierra el selector. El ítem nuevo nunca encadena superserie: queda último.
+     */
+    fun addExercise(exerciseId: String) {
+        val data = lastData ?: return
+        val current = draft ?: return
+        val exercise = data.exercises.firstOrNull { it.id == exerciseId } ?: return
+        val item = DayItem(id = newItemId(), exercise = exercise, sets = DEFAULT_SETS)
+        applyDraft(current + item)
+        picking = false
+        publish(data)
+    }
+
+    /** Sube o baja el ítem una posición; el nuevo último pierde la marca de superserie. */
+    fun moveItem(itemId: String, offset: Int) {
+        val data = lastData ?: return
+        val current = draft ?: return
+        val from = current.indexOfFirst { it.id == itemId }
+        if (from < 0) return
+        val to = (from + offset).coerceIn(0, current.lastIndex)
+        if (to == from) return
+        val moved = current.toMutableList().apply {
+            removeAt(from)
+            add(to, itemId)
+        }
+        applyDraft(moved)
+        publish(data)
+    }
+
+    /**
+     * Quita el ítem del borrador. Si era el último, el anterior se destilda solo: la
+     * invariante de §2 viaja con cada operación ([withSupersetInvariant]).
+     */
+    fun removeItem(itemId: String) {
+        val data = lastData ?: return
+        val current = draft ?: return
+        applyDraft(current.filterNot { it.id == itemId })
+        publish(data)
+    }
+
+    /**
+     * Cambia las series del ítem. **No clampea**: un valor fuera de 1..20 queda en el
+     * borrador como error tipado (`SETS_OUT_OF_RANGE`) y bloquea el guardado. El stepper
+     * de la pantalla ya topa en 1..20 (`ITEM_SETS_RANGE`), así que por UI no se llega.
+     */
+    fun setSets(itemId: String, sets: Int) {
+        val data = lastData ?: return
+        val current = draft ?: return
+        applyDraft(current.map { if (it.id == itemId) it.copy(sets = sets) else it })
+        publish(data)
+    }
+
+    /** Prende o apaga el drop set del ítem (suma trabajo y series efectivas al final). */
+    fun toggleDropSet(itemId: String) {
+        val data = lastData ?: return
+        val current = draft ?: return
+        applyDraft(current.map { if (it.id == itemId) it.copy(dropSet = !it.dropSet) else it })
+        publish(data)
+    }
+
+    /** Prende o apaga "superserie con el siguiente". En el último ítem no hace nada. */
+    fun toggleSupersetNext(itemId: String) {
+        val data = lastData ?: return
+        val current = draft ?: return
+        val index = current.indexOfFirst { it.id == itemId }
+        if (index < 0 || index == current.lastIndex) return
+        applyDraft(
+            current.mapIndexed { i, item ->
+                if (i == index) item.copy(supersetNext = !item.supersetNext) else item
+            },
+        )
+        publish(data)
+    }
+
+    /**
+     * Guarda el borrador: primero `validateDay` de `:core`, después
+     * [RoutineRepository.saveDayItems] (que corre en `Dispatchers.IO` y aplica las
+     * invariantes del DAO). Con errores **no se escribe nada** y el estado los muestra.
+     */
+    fun saveEdit() {
+        val data = lastData ?: return
+        val day = selectedDay ?: return
+        val items = draft ?: return
+        if (saving) return
+
+        val normalized = withSupersetInvariant(items)
+        val errors = validateDay(RoutineDay(day.id, day.name, normalized))
+        draft = normalized
+        if (errors.isNotEmpty()) {
+            rejected = true
+            publish(data)
+            return
+        }
+
+        rejected = false
+        saving = true
+        publish(data)
+        scope.launch {
+            routines.saveDayItems(day.id, normalized)
+            draft = null
+            draftDirty = false
+            saving = false
+            picking = false
+            lastData?.let(::publish)
+        }
+    }
+
+    /** El borrador como día de `:core`. Es lo que usan los tests y el guardado. */
+    internal fun draftDay(): RoutineDay? {
+        val day = selectedDay ?: return null
+        return RoutineDay(day.id, day.name, draft ?: day.items)
+    }
+
+    private fun applyDraft(items: List<DayItem>) {
+        val normalized = withSupersetInvariant(items)
+        if (normalized == draft) return
+        draft = normalized
+        draftDirty = true
+        rejected = false
+    }
+
+    private fun clearDraft() {
+        draft = null
+        draftDirty = false
+        saving = false
+        rejected = false
+        picking = false
     }
 
     // --- exportar (§5) -----------------------------------------------------------
@@ -311,6 +523,8 @@ class RutinasViewModel internal constructor(
             selectedDayId = null
             pendingPlanId = null
             pendingDayId = null
+            selectedDay = null
+            clearDraft()
             _state.value = RutinasUiState(loading = false, hasPlans = false, canDeletePlan = false)
             return
         }
@@ -328,6 +542,8 @@ class RutinasViewModel internal constructor(
             ?: plan.days.firstOrNull()
         if (day?.id == pendingDayId) pendingDayId = null
         selectedDayId = day?.id
+        selectedDay = day
+        if (draft != null && day == null) clearDraft()
 
         _state.value = RutinasUiState(
             loading = false,
@@ -349,6 +565,11 @@ class RutinasViewModel internal constructor(
             selectedDayId = day?.id,
             day = day?.toUi(core, data.muscleNames),
             canDeletePlan = data.plans.size > 1,
+            editor = if (day != null && draft != null) {
+                editorUi(day, requireNotNull(draft), core, data)
+            } else {
+                null
+            },
         )
     }
 
@@ -397,9 +618,98 @@ class RutinasViewModel internal constructor(
 
     private fun copyName(name: String): String = "$name (copia)"
 
+    // --- proyección del editor (GIM-17) ------------------------------------------
+
+    /**
+     * Arma el estado del editor desde el borrador. Todo lo numérico sale de `:core`
+     * ([dayStats], [effectiveSets], [validateDay], [supersetConflicts], [heavyPairs]) y
+     * acá sólo se traduce a texto: la pantalla no calcula ni interpreta códigos.
+     */
+    private fun editorUi(
+        day: RoutineDay,
+        items: List<DayItem>,
+        core: Settings,
+        data: RutinasData,
+    ): DiaEditorUiState {
+        val draftDay = RoutineDay(day.id, day.name, items)
+        val stats = dayStats(items, core)
+        val problems = validateDay(draftDay).map { error -> error.toProblem(data) }
+        val muscleName = { id: String -> data.muscleNames[id] ?: id }
+        val lastIndex = items.lastIndex
+
+        return DiaEditorUiState(
+            dayId = day.id,
+            dayName = day.name,
+            durationLabel = formatDuration(stats.totalSeconds),
+            setsLabel = stats.sets.toString(),
+            workRestLabel = "${formatDuration(stats.workSeconds)} de trabajo · " +
+                "${formatDuration(stats.restSeconds)} de descanso",
+            items = items.mapIndexed { index, item ->
+                val own = problems.filter {
+                    it.subjectId == item.id || it.subjectId == item.exercise.id
+                }
+                val effective = effectiveSets(item, core)
+                DiaEditorItemUi(
+                    id = item.id,
+                    position = index + 1,
+                    exerciseId = item.exercise.id,
+                    name = item.exercise.name,
+                    muscle = muscleName(item.exercise.primaryMuscleId),
+                    sets = item.sets,
+                    dropSet = item.dropSet,
+                    supersetNext = item.supersetNext,
+                    canSuperset = index != lastIndex,
+                    effectiveSets = effective,
+                    detail = "${item.sets} series · ${formatNumber(effective)} efectivas · " +
+                        "descanso ${item.restOverrideSeconds ?: item.exercise.restSeconds} s",
+                    problemCodes = own.map { it.code }.toSet(),
+                    problemTexts = own.map { it.text },
+                )
+            },
+            warnings = warnings(draftDay, data.muscleNames),
+            problems = problems,
+            catalog = data.exercises
+                .filterNot { it.archived }
+                .sortedWith(compareBy({ it.position }, { it.name }))
+                .map { DiaExerciseOptionUi(it.id, it.name, muscleName(it.primaryMuscleId)) },
+            dirty = draftDirty,
+            saving = saving,
+            rejected = rejected,
+            picking = picking,
+        )
+    }
+
+    /**
+     * Traduce un [EditorError] de `:core` a texto, conservando el código y el sujeto.
+     * El detalle que necesita nombres (músculo, ejercicio) se resuelve acá, que es donde
+     * están los mapas del árbol.
+     */
+    private fun EditorError.toProblem(data: RutinasData): DiaEditorProblemUi {
+        val text = when (this) {
+            is SupersetOnLastItem ->
+                "El último ítem del día no puede encadenar superserie."
+
+            is SetsOutOfRange ->
+                "Series fuera de ${allowed.first}–${allowed.last}: $sets."
+
+            is NegativeRestOverride ->
+                "Descanso inválido (${seconds} s): no puede ser negativo."
+
+            is DuplicateSecondary ->
+                "El músculo ${data.muscleNames[muscleId] ?: muscleId} está repetido " +
+                    "como secundario."
+
+            is SecondaryFactorOutOfRange ->
+                "Factor del músculo ${data.muscleNames[muscleId] ?: muscleId} fuera de " +
+                    "0–1: ${formatNumber(factor)}."
+        }
+        return DiaEditorProblemUi(code = code, subjectId = subjectId, text = text)
+    }
+
     private data class RutinasData(
         val plans: List<Routine>,
         val muscles: List<Muscle>,
+        val exercises: List<Exercise>,
         val preferences: AppSettings,
         val activeId: String?,
         val muscleNames: Map<String, String> = emptyMap(),
@@ -409,5 +719,8 @@ class RutinasViewModel internal constructor(
         /** Sufijos en `muted` del diseño (`docs/diseno.md` §8 #4). */
         const val DROP_SET: String = "Drop set"
         const val SUPERSET: String = "Superserie"
+
+        /** Series con las que entra un ítem nuevo (la web: 3). */
+        const val DEFAULT_SETS: Int = 3
     }
 }

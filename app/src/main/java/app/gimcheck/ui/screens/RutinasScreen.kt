@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,8 +17,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
@@ -45,7 +48,9 @@ import app.gimcheck.ui.LocalAppContainer
 import app.gimcheck.ui.components.ChipFilter
 import app.gimcheck.ui.components.ConfirmInline
 import app.gimcheck.ui.components.EmptyState
+import app.gimcheck.ui.components.PrimaryButton
 import app.gimcheck.ui.components.SectionHeader
+import app.gimcheck.ui.components.SetStepper
 import app.gimcheck.ui.components.StatTile
 import app.gimcheck.ui.theme.GimHeight
 import app.gimcheck.ui.theme.GimRadius
@@ -53,6 +58,7 @@ import app.gimcheck.ui.theme.GimSpacing
 import app.gimcheck.ui.theme.GimStroke
 import app.gimcheck.ui.theme.GimText
 import app.gimcheck.ui.theme.GimTheme
+import kotlin.math.roundToInt
 
 /**
  * **Rutinas** — §6 fila 4 y `docs/diseno.md` §8 #4 (GIM-16).
@@ -63,8 +69,13 @@ import app.gimcheck.ui.theme.GimTheme
  * con "Agregar día" · chips de día · `StatTile` de duración y series del día · ítems en
  * orden con drop set y superserie · advertencias en `warn` · acciones del día.
  *
- * **El detalle del día es solo lectura**: el editor es GIM-17. La pantalla no calcula
- * nada; todo (incluidos los textos de advertencia) viene resuelto de
+ * **"Editar día" convierte el bloque del día en el editor de GIM-17** (misma pantalla,
+ * mismo grafo): métricas del borrador, ítems con `SetStepper` y toggles, mover/quitar,
+ * selector de ejercicio y guardado explícito. En modo edición el detalle solo lectura de
+ * GIM-16 se reemplaza, así que no hay dos verdades en pantalla.
+ *
+ * El detalle solo lectura no calcula nada; el editor tampoco: todo (métricas del
+ * borrador, advertencias, errores tipados y textos) viene resuelto de
  * [RutinasViewModel]. Los colores salen de [GimTheme], nunca literales.
  *
  * **Exportar** arma el JSON de la web en el ViewModel (`exportPlan` de `:core`) y acá
@@ -118,9 +129,40 @@ fun RutinasScreen(
         onDeleteDay = viewModel::deleteDay,
         onAddExercise = onAddExercise,
         onOpenExercises = onOpenExercises,
+        editor = DiaEditorActions(
+            onStart = viewModel::startEdit,
+            onCancel = viewModel::cancelEdit,
+            onSave = viewModel::saveEdit,
+            onOpenPicker = viewModel::openPicker,
+            onClosePicker = viewModel::closePicker,
+            onAdd = viewModel::addExercise,
+            onMove = viewModel::moveItem,
+            onRemove = viewModel::removeItem,
+            onSets = viewModel::setSets,
+            onDropSet = viewModel::toggleDropSet,
+            onSuperset = viewModel::toggleSupersetNext,
+        ),
         modifier = modifier,
     )
 }
+
+/**
+ * Los eventos del editor del día (GIM-17), agrupados para no arrastrar diez lambdas por
+ * dos composables. Todos terminan en [RutinasViewModel]: la pantalla no decide nada.
+ */
+private data class DiaEditorActions(
+    val onStart: () -> Unit,
+    val onCancel: () -> Unit,
+    val onSave: () -> Unit,
+    val onOpenPicker: () -> Unit,
+    val onClosePicker: () -> Unit,
+    val onAdd: (String) -> Unit,
+    val onMove: (String, Int) -> Unit,
+    val onRemove: (String) -> Unit,
+    val onSets: (String, Int) -> Unit,
+    val onDropSet: (String) -> Unit,
+    val onSuperset: (String) -> Unit,
+)
 
 @Composable
 private fun RutinasContent(
@@ -139,6 +181,7 @@ private fun RutinasContent(
     onDeleteDay: (String) -> Unit,
     onAddExercise: () -> Unit,
     onOpenExercises: () -> Unit,
+    editor: DiaEditorActions,
     modifier: Modifier = Modifier,
 ) {
     val colors = GimTheme.colors
@@ -236,6 +279,14 @@ private fun RutinasContent(
             }
         }
 
+        // Modo edición (GIM-17): reemplaza el detalle solo lectura de abajo. Las métricas
+        // y las advertencias son del borrador y se recalculan en el ViewModel.
+        val draft = state.editor
+        if (draft != null) {
+            diaEditor(draft, editor)
+            return@LazyColumn
+        }
+
         item(key = "stats-dia") {
             Row(horizontalArrangement = Arrangement.spacedBy(GimSpacing.s)) {
                 StatTile(
@@ -277,9 +328,337 @@ private fun RutinasContent(
                 onDuplicate = { onDuplicateDay(day.id) },
                 onRename = { name -> onRenameDay(day.id, name) },
                 onDelete = { onDeleteDay(day.id) },
+                onEdit = editor.onStart,
             )
         }
     }
+}
+
+/**
+ * Editor del día dentro del `LazyColumn` de Rutinas: métricas del borrador arriba,
+ * ítems editables, advertencias y errores en vivo, selector de ejercicio y guardado al
+ * final (la acción primaria va abajo, `docs/diseno.md` §5).
+ */
+private fun LazyListScope.diaEditor(
+    editor: DiaEditorUiState,
+    actions: DiaEditorActions,
+) {
+    item(key = "editor-stats") {
+        Row(horizontalArrangement = Arrangement.spacedBy(GimSpacing.s)) {
+            StatTile(
+                k = stringResource(R.string.ph_duracion),
+                v = editor.durationLabel,
+                modifier = Modifier.weight(1f),
+            )
+            StatTile(
+                k = stringResource(R.string.ph_series),
+                v = editor.setsLabel,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+
+    item(key = "editor-workrest") {
+        Text(
+            text = editor.workRestLabel,
+            style = GimText.detalle,
+            color = GimTheme.colors.muted,
+        )
+    }
+
+    if (editor.items.isEmpty()) {
+        item(key = "editor-vacio") {
+            EmptyState(
+                text = stringResource(R.string.rutinas_editor_vacio),
+                actionLabel = stringResource(R.string.rutinas_editor_agregar),
+                onAction = actions.onOpenPicker,
+            )
+        }
+    }
+
+    items(editor.items, key = { "editor-${it.id}" }) { item ->
+        EditorItemRow(
+            item = item,
+            isFirst = item.position == 1,
+            actions = actions,
+        )
+    }
+
+    if (editor.warnings.isNotEmpty()) {
+        item(key = "editor-advertencias") { WarningBlock(warnings = editor.warnings) }
+    }
+
+    if (editor.problems.isNotEmpty()) {
+        item(key = "editor-errores") { ProblemBlock(problems = editor.problems) }
+    }
+
+    if (editor.rejected) {
+        item(key = "editor-rechazado") {
+            Text(
+                text = stringResource(R.string.rutinas_editor_rechazado),
+                style = GimText.cuerpo,
+                color = GimTheme.colors.bad,
+            )
+        }
+    }
+
+    item(key = "editor-nota") {
+        Text(
+            text = stringResource(R.string.rutinas_editor_nota),
+            style = GimText.detalle,
+            color = GimTheme.colors.muted,
+        )
+    }
+
+    if (editor.picking) {
+        item(key = "editor-picker-header") {
+            SectionHeader(
+                title = stringResource(R.string.rutinas_editor_elegir),
+                action = stringResource(R.string.rutinas_editor_cerrar),
+                onAction = actions.onClosePicker,
+            )
+        }
+        if (editor.catalog.isEmpty()) {
+            item(key = "editor-picker-vacio") {
+                Text(
+                    text = stringResource(R.string.rutinas_editor_sin_catalogo),
+                    style = GimText.detalle,
+                    color = GimTheme.colors.muted,
+                )
+            }
+        }
+        items(editor.catalog, key = { "catalogo-${it.id}" }) { option ->
+            ExerciseOptionRow(option = option, onClick = { actions.onAdd(option.id) })
+        }
+    }
+
+    item(key = "editor-acciones") {
+        Column(verticalArrangement = Arrangement.spacedBy(GimSpacing.s)) {
+            if (!editor.picking) {
+                ActionText(
+                    label = stringResource(R.string.rutinas_editor_agregar),
+                    color = GimTheme.colors.accent,
+                    onClick = actions.onOpenPicker,
+                )
+            }
+            PrimaryButton(
+                label = stringResource(R.string.rutinas_editor_guardar),
+                onClick = actions.onSave,
+                enabled = editor.canSave,
+            )
+            ActionText(
+                label = stringResource(R.string.rutinas_editor_descartar),
+                color = GimTheme.colors.muted,
+                onClick = actions.onCancel,
+            )
+        }
+    }
+}
+
+/**
+ * Ítem editable: número, ejercicio, subir/bajar, `SetStepper` de series, toggles de drop
+ * set y superserie (deshabilitado en el último) y quitar con `ConfirmInline`.
+ */
+@Composable
+private fun EditorItemRow(
+    item: DiaEditorItemUi,
+    isFirst: Boolean,
+    actions: DiaEditorActions,
+) {
+    val colors = GimTheme.colors
+    val shape = RoundedCornerShape(GimRadius.control)
+    var confirming by remember(item.id) { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.surface, shape)
+            .border(
+                GimStroke.border,
+                if (item.problemCodes.isEmpty()) colors.line else colors.bad,
+                shape,
+            )
+            .padding(GimSpacing.m),
+        verticalArrangement = Arrangement.spacedBy(GimSpacing.s),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(GimSpacing.m),
+        ) {
+            Text(text = item.position.toString(), style = GimText.etiqueta, color = colors.muted)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.name,
+                    style = GimText.cuerpo,
+                    color = colors.ink,
+                    maxLines = 2,
+                )
+                Text(
+                    text = item.muscle,
+                    style = GimText.detalle,
+                    color = colors.muted,
+                    maxLines = 1,
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(GimSpacing.m),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            EditorAction(
+                label = stringResource(R.string.rutinas_editor_subir),
+                enabled = !isFirst,
+                color = colors.ink2,
+                onClick = { actions.onMove(item.id, -1) },
+            )
+            EditorAction(
+                label = stringResource(R.string.rutinas_editor_bajar),
+                enabled = item.canSuperset,
+                color = colors.ink2,
+                onClick = { actions.onMove(item.id, 1) },
+            )
+            EditorAction(
+                label = stringResource(R.string.rutinas_editor_quitar),
+                enabled = true,
+                color = colors.bad,
+                onClick = { confirming = true },
+            )
+        }
+
+        SetStepper(
+            value = item.sets.toDouble(),
+            step = 1.0,
+            min = 1.0,
+            max = 20.0,
+            label = stringResource(R.string.rutinas_editor_series),
+            onValue = { actions.onSets(item.id, it.roundToInt()) },
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(GimSpacing.s),
+        ) {
+            EditorToggle(
+                label = stringResource(R.string.rutinas_editor_drop_set),
+                on = item.dropSet,
+                onClick = { actions.onDropSet(item.id) },
+            )
+            EditorToggle(
+                label = stringResource(R.string.rutinas_editor_superserie),
+                on = item.supersetNext,
+                enabled = item.canSuperset,
+                onClick = { actions.onSuperset(item.id) },
+            )
+        }
+
+        Text(text = item.detail, style = GimText.detalle, color = colors.muted)
+        if (!item.canSuperset) {
+            Text(
+                text = stringResource(R.string.rutinas_editor_superserie_ultimo),
+                style = GimText.detalle,
+                color = colors.muted,
+            )
+        }
+        item.problemTexts.forEach { problem ->
+            Text(text = problem, style = GimText.detalle, color = colors.bad)
+        }
+
+        if (confirming) {
+            ConfirmInline(
+                question = stringResource(R.string.rutinas_editor_quitar_pregunta, item.name),
+                onConfirm = {
+                    confirming = false
+                    actions.onRemove(item.id)
+                },
+                onCancel = { confirming = false },
+                confirmLabel = stringResource(R.string.rutinas_editor_quitar),
+            )
+        }
+    }
+}
+
+/** Fila del selector de ejercicio: nombre arriba, músculo principal abajo. */
+@Composable
+private fun ExerciseOptionRow(option: DiaExerciseOptionUi, onClick: () -> Unit) {
+    val colors = GimTheme.colors
+    val shape = RoundedCornerShape(GimRadius.control)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = GimHeight.row)
+            .background(colors.surface2, shape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = GimSpacing.m, vertical = GimSpacing.s),
+        verticalArrangement = Arrangement.spacedBy(GimSpacing.xs),
+    ) {
+        Text(text = option.name, style = GimText.cuerpo, color = colors.ink, maxLines = 2)
+        Text(text = option.muscle, style = GimText.detalle, color = colors.muted, maxLines = 1)
+    }
+}
+
+/** Toggle de texto (`Drop set`, superserie): mismo alto táctil que un chip. */
+@Composable
+private fun EditorToggle(
+    label: String,
+    on: Boolean,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+) {
+    val colors = GimTheme.colors
+    val shape = RoundedCornerShape(GimRadius.chip)
+    val content = when {
+        !enabled -> colors.muted
+        on -> colors.accent
+        else -> colors.ink2
+    }
+    Box(
+        modifier = Modifier
+            .defaultMinSize(minHeight = GimHeight.chip)
+            .background(if (on) colors.surface2 else Color.Transparent, shape)
+            .border(GimStroke.border, if (on) colors.accent else colors.line, shape)
+            .selectable(selected = on, enabled = enabled, role = Role.Checkbox, onClick = onClick)
+            .padding(horizontal = GimSpacing.m, vertical = GimSpacing.xs),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = label, style = GimText.etiqueta, color = content, maxLines = 1)
+    }
+}
+
+/** Errores de validación del borrador: el texto viene armado del ViewModel. */
+@Composable
+private fun ProblemBlock(problems: List<DiaEditorProblemUi>) {
+    val colors = GimTheme.colors
+    Column(verticalArrangement = Arrangement.spacedBy(GimSpacing.xs)) {
+        Text(
+            text = stringResource(R.string.rutinas_editor_error_titulo).uppercase(),
+            style = GimText.etiqueta,
+            color = colors.bad,
+        )
+        problems.forEach { problem ->
+            Text(text = problem.text, style = GimText.detalle, color = colors.bad)
+        }
+    }
+}
+
+/** Acción de texto habilitable, mismo alto táctil que [ActionText]. */
+@Composable
+private fun EditorAction(label: String, enabled: Boolean, color: Color, onClick: () -> Unit) {
+    val colors = GimTheme.colors
+    Text(
+        text = label,
+        style = GimText.boton,
+        color = if (enabled) color else colors.muted,
+        maxLines = 1,
+        modifier = Modifier
+            .defaultMinSize(minHeight = GimHeight.row)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+    )
 }
 
 /**
@@ -409,13 +788,14 @@ private fun PlanCard(
     }
 }
 
-/** Acciones del día elegido: duplicar, renombrar y eliminar (con confirmación). */
+/** Acciones del día elegido: editar, duplicar, renombrar y eliminar (con confirmación). */
 @Composable
 private fun DayActions(
     day: RutinaDayDetailUi,
     onDuplicate: () -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
+    onEdit: () -> Unit,
 ) {
     val colors = GimTheme.colors
     var editing by remember(day.id) { mutableStateOf(false) }
@@ -448,6 +828,7 @@ private fun DayActions(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(GimSpacing.m),
             ) {
+                ActionText(stringResource(R.string.rutinas_editar_dia), colors.accent, onEdit)
                 ActionText(stringResource(R.string.rutinas_duplicar_dia), colors.ink2, onDuplicate)
                 ActionText(
                     label = stringResource(R.string.rutinas_renombrar_dia),
