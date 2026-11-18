@@ -13,7 +13,12 @@ activityCompose = "1.13.0"
 navigationCompose = "2.10.2"
 lifecycle = "2.11.0"
 coreKtx = "1.19.1"
-kotlinxSerialization = "1.13.0"
+# 1.9.0 y no 1.13.0: la 1.13 se publicó con metadata de Kotlin 2.4 y el compilador
+# de acá es 2.2.10 (lo fija AGP 9.5.1), así que no puede leerla:
+#   Module was compiled with an incompatible version of Kotlin. The binary version of
+#   its metadata is 2.4.0, expected version is 2.2.0.
+# Al subir Kotlin hay que volver a subir esta versión.
+kotlinxSerialization = "1.9.0"
 kotlinxDatetime = "0.8.0"
 robolectric = "4.18"
 junit = "4.13.2"

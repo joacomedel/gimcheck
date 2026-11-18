@@ -1,0 +1,1147 @@
+{
+  "settings": {
+    "warm": 5,
+    "trans": 30,
+    "drops": 2,
+    "dropSec": 25,
+    "dropVol": 0.5,
+    "optMin": 10,
+    "optMax": 20
+  },
+  "muscles": [
+    "Pecho",
+    "Espalda",
+    "Hombro anterior",
+    "Hombro lateral",
+    "Hombro posterior",
+    "Bíceps",
+    "Tríceps",
+    "Antebrazo",
+    "Cuádriceps",
+    "Isquiotibiales",
+    "Glúteo",
+    "Gemelos",
+    "Abductores",
+    "Aductores",
+    "Abdomen"
+  ],
+  "exercises": [
+    {
+      "id": "pp",
+      "name": "Press plano",
+      "primary": "Pecho",
+      "secondary": [
+        {
+          "m": "Hombro anterior",
+          "f": 0.5
+        },
+        {
+          "m": "Tríceps",
+          "f": 0.5
+        }
+      ],
+      "work": 45,
+      "rest": 120,
+      "multi": true
+    },
+    {
+      "id": "hu",
+      "name": "Hombro unilateral",
+      "primary": "Hombro lateral",
+      "secondary": [],
+      "work": 60,
+      "rest": 60,
+      "multi": false
+    },
+    {
+      "id": "ap",
+      "name": "Aperturas de pecho",
+      "primary": "Pecho",
+      "secondary": [
+        {
+          "m": "Hombro anterior",
+          "f": 0.25
+        }
+      ],
+      "work": 35,
+      "rest": 75,
+      "multi": false
+    },
+    {
+      "id": "tpa",
+      "name": "Tríceps en polea hacia arriba",
+      "primary": "Tríceps",
+      "secondary": [],
+      "work": 35,
+      "rest": 75,
+      "multi": false
+    },
+    {
+      "id": "ant",
+      "name": "Antebrazo",
+      "primary": "Antebrazo",
+      "secondary": [],
+      "work": 35,
+      "rest": 60,
+      "multi": false
+    },
+    {
+      "id": "tpb",
+      "name": "Tríceps en polea hacia abajo",
+      "primary": "Tríceps",
+      "secondary": [],
+      "work": 35,
+      "rest": 75,
+      "multi": false
+    },
+    {
+      "id": "dl",
+      "name": "Dominadas lastradas",
+      "primary": "Espalda",
+      "secondary": [
+        {
+          "m": "Bíceps",
+          "f": 0.5
+        },
+        {
+          "m": "Antebrazo",
+          "f": 0.25
+        }
+      ],
+      "work": 45,
+      "rest": 120,
+      "multi": true
+    },
+    {
+      "id": "po",
+      "name": "Pull over",
+      "primary": "Espalda",
+      "secondary": [
+        {
+          "m": "Pecho",
+          "f": 0.25
+        },
+        {
+          "m": "Tríceps",
+          "f": 0.25
+        }
+      ],
+      "work": 35,
+      "rest": 90,
+      "multi": false
+    },
+    {
+      "id": "apo",
+      "name": "Apertura posterior",
+      "primary": "Hombro posterior",
+      "secondary": [
+        {
+          "m": "Espalda",
+          "f": 0.25
+        }
+      ],
+      "work": 35,
+      "rest": 75,
+      "multi": false
+    },
+    {
+      "id": "bm",
+      "name": "Bíceps martillo",
+      "primary": "Bíceps",
+      "secondary": [
+        {
+          "m": "Antebrazo",
+          "f": 0.5
+        }
+      ],
+      "work": 35,
+      "rest": 75,
+      "multi": false
+    },
+    {
+      "id": "ha",
+      "name": "Hombro anterior",
+      "primary": "Hombro anterior",
+      "secondary": [],
+      "work": 35,
+      "rest": 75,
+      "multi": false
+    },
+    {
+      "id": "bmq",
+      "name": "Bíceps en máquina",
+      "primary": "Bíceps",
+      "secondary": [],
+      "work": 35,
+      "rest": 75,
+      "multi": false
+    },
+    {
+      "id": "gem",
+      "name": "Gemelos",
+      "primary": "Gemelos",
+      "secondary": [],
+      "work": 35,
+      "rest": 60,
+      "multi": false
+    },
+    {
+      "id": "cua",
+      "name": "Cuádriceps en máquina",
+      "primary": "Cuádriceps",
+      "secondary": [],
+      "work": 40,
+      "rest": 90,
+      "multi": false
+    },
+    {
+      "id": "hip",
+      "name": "Hip thrust",
+      "primary": "Glúteo",
+      "secondary": [
+        {
+          "m": "Isquiotibiales",
+          "f": 0.25
+        }
+      ],
+      "work": 45,
+      "rest": 120,
+      "multi": true
+    },
+    {
+      "id": "absf",
+      "name": "Abs en fondo",
+      "primary": "Abdomen",
+      "secondary": [],
+      "work": 35,
+      "rest": 60,
+      "multi": false
+    },
+    {
+      "id": "crun",
+      "name": "Crunch en máquina",
+      "primary": "Abdomen",
+      "secondary": [],
+      "work": 35,
+      "rest": 60,
+      "multi": false
+    },
+    {
+      "id": "pm",
+      "name": "Press militar",
+      "primary": "Hombro anterior",
+      "secondary": [
+        {
+          "m": "Hombro lateral",
+          "f": 0.5
+        },
+        {
+          "m": "Tríceps",
+          "f": 0.5
+        }
+      ],
+      "work": 45,
+      "rest": 120,
+      "multi": true
+    },
+    {
+      "id": "dom",
+      "name": "Dominadas",
+      "primary": "Espalda",
+      "secondary": [
+        {
+          "m": "Bíceps",
+          "f": 0.5
+        },
+        {
+          "m": "Antebrazo",
+          "f": 0.25
+        }
+      ],
+      "work": 45,
+      "rest": 120,
+      "multi": true
+    },
+    {
+      "id": "abd",
+      "name": "Abductor",
+      "primary": "Abductores",
+      "secondary": [],
+      "work": 35,
+      "rest": 60,
+      "multi": false
+    },
+    {
+      "id": "adu",
+      "name": "Aductor",
+      "primary": "Aductores",
+      "secondary": [],
+      "work": 35,
+      "rest": 60,
+      "multi": false
+    },
+    {
+      "id": "isq",
+      "name": "Isquiotibiales",
+      "primary": "Isquiotibiales",
+      "secondary": [],
+      "work": 40,
+      "rest": 75,
+      "multi": false
+    },
+    {
+      "id": "dor",
+      "name": "Dorsalera",
+      "primary": "Espalda",
+      "secondary": [
+        {
+          "m": "Bíceps",
+          "f": 0.5
+        }
+      ],
+      "work": 40,
+      "rest": 90,
+      "multi": true
+    },
+    {
+      "id": "pin",
+      "name": "Press inclinado con mancuernas",
+      "primary": "Pecho",
+      "secondary": [
+        {
+          "m": "Hombro anterior",
+          "f": 0.5
+        },
+        {
+          "m": "Tríceps",
+          "f": 0.5
+        }
+      ],
+      "work": 45,
+      "rest": 105,
+      "multi": true
+    },
+    {
+      "id": "tsc",
+      "name": "Tríceps sobre la cabeza",
+      "primary": "Tríceps",
+      "secondary": [],
+      "work": 35,
+      "rest": 75,
+      "multi": false
+    },
+    {
+      "id": "fon",
+      "name": "Fondos lastrados",
+      "primary": "Pecho",
+      "secondary": [
+        {
+          "m": "Tríceps",
+          "f": 0.5
+        },
+        {
+          "m": "Hombro anterior",
+          "f": 0.5
+        }
+      ],
+      "work": 45,
+      "rest": 120,
+      "multi": true
+    },
+    {
+      "id": "rem",
+      "name": "Remo con barra",
+      "primary": "Espalda",
+      "secondary": [
+        {
+          "m": "Bíceps",
+          "f": 0.5
+        },
+        {
+          "m": "Hombro posterior",
+          "f": 0.5
+        }
+      ],
+      "work": 45,
+      "rest": 105,
+      "multi": true
+    },
+    {
+      "id": "sen",
+      "name": "Sentadilla",
+      "primary": "Cuádriceps",
+      "secondary": [
+        {
+          "m": "Glúteo",
+          "f": 0.5
+        },
+        {
+          "m": "Isquiotibiales",
+          "f": 0.25
+        }
+      ],
+      "work": 50,
+      "rest": 150,
+      "multi": true
+    },
+    {
+      "id": "pdr",
+      "name": "Peso muerto rumano",
+      "primary": "Isquiotibiales",
+      "secondary": [
+        {
+          "m": "Glúteo",
+          "f": 0.5
+        },
+        {
+          "m": "Espalda",
+          "f": 0.25
+        }
+      ],
+      "work": 50,
+      "rest": 120,
+      "multi": true
+    },
+    {
+      "id": "pre",
+      "name": "Prensa de piernas",
+      "primary": "Cuádriceps",
+      "secondary": [
+        {
+          "m": "Glúteo",
+          "f": 0.5
+        }
+      ],
+      "work": 45,
+      "rest": 105,
+      "multi": true
+    },
+    {
+      "id": "vl",
+      "name": "Vuelos laterales con mancuerna",
+      "primary": "Hombro lateral",
+      "secondary": [],
+      "work": 30,
+      "rest": 45,
+      "multi": false
+    },
+    {
+      "id": "rg",
+      "name": "Remo Gironda",
+      "primary": "Espalda",
+      "secondary": [
+        {
+          "m": "Bíceps",
+          "f": 0.5
+        },
+        {
+          "m": "Hombro posterior",
+          "f": 0.25
+        }
+      ],
+      "work": 40,
+      "rest": 90,
+      "multi": true
+    }
+  ],
+  "includeIndirect": false,
+  "plans": [
+    {
+      "id": "pa",
+      "name": "Rutina A (original)",
+      "days": [
+        {
+          "id": "da1",
+          "name": "Día 1",
+          "items": [
+            {
+              "id": "da1-1",
+              "ex": "pp",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da1-2",
+              "ex": "hu",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da1-3",
+              "ex": "ap",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da1-4",
+              "ex": "tpa",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da1-5",
+              "ex": "ant",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da1-6",
+              "ex": "tpb",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            }
+          ]
+        },
+        {
+          "id": "da2",
+          "name": "Día 2",
+          "items": [
+            {
+              "id": "da2-1",
+              "ex": "dl",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da2-2",
+              "ex": "po",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da2-3",
+              "ex": "apo",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da2-4",
+              "ex": "bm",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da2-5",
+              "ex": "ha",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da2-6",
+              "ex": "bmq",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            }
+          ]
+        },
+        {
+          "id": "da3",
+          "name": "Día 3",
+          "items": [
+            {
+              "id": "da3-1",
+              "ex": "gem",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da3-2",
+              "ex": "hu",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da3-3",
+              "ex": "cua",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da3-4",
+              "ex": "hip",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da3-5",
+              "ex": "absf",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da3-6",
+              "ex": "crun",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            }
+          ]
+        },
+        {
+          "id": "da4",
+          "name": "Día 4",
+          "items": [
+            {
+              "id": "da4-1",
+              "ex": "pp",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da4-2",
+              "ex": "pm",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da4-3",
+              "ex": "dom",
+              "sets": 2,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da4-4",
+              "ex": "ap",
+              "sets": 2,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da4-5",
+              "ex": "po",
+              "sets": 2,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da4-6",
+              "ex": "apo",
+              "sets": 2,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da4-7",
+              "ex": "bm",
+              "sets": 2,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da4-8",
+              "ex": "tpa",
+              "sets": 2,
+              "ds": false,
+              "ss": false
+            }
+          ]
+        },
+        {
+          "id": "da5",
+          "name": "Día 5",
+          "items": [
+            {
+              "id": "da5-1",
+              "ex": "gem",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da5-2",
+              "ex": "hu",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da5-3",
+              "ex": "abd",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da5-4",
+              "ex": "absf",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da5-5",
+              "ex": "adu",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da5-6",
+              "ex": "crun",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da5-7",
+              "ex": "isq",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            }
+          ]
+        },
+        {
+          "id": "da6",
+          "name": "Día 6",
+          "items": [
+            {
+              "id": "da6-1",
+              "ex": "pp",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da6-2",
+              "ex": "dor",
+              "sets": 2,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da6-3",
+              "ex": "pin",
+              "sets": 2,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da6-4",
+              "ex": "po",
+              "sets": 2,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da6-5",
+              "ex": "bmq",
+              "sets": 2,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "da6-6",
+              "ex": "tsc",
+              "sets": 2,
+              "ds": false,
+              "ss": false
+            }
+          ]
+        }
+      ],
+      "activeDay": "da1"
+    },
+    {
+      "id": "pb",
+      "name": "Rutina B (más multiarticulares)",
+      "days": [
+        {
+          "id": "db1",
+          "name": "Día 1",
+          "items": [
+            {
+              "id": "db1-1",
+              "ex": "pp",
+              "sets": 4,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db1-2",
+              "ex": "ha",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db1-3",
+              "ex": "pin",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db1-4",
+              "ex": "bmq",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db1-5",
+              "ex": "fon",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db1-6",
+              "ex": "absf",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db1-7",
+              "ex": "tpb",
+              "sets": 2,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db1-8",
+              "ex": "vl",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            }
+          ]
+        },
+        {
+          "id": "db2",
+          "name": "Día 2",
+          "items": [
+            {
+              "id": "db2-1",
+              "ex": "dl",
+              "sets": 4,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db2-2",
+              "ex": "absf",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db2-3",
+              "ex": "rg",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db2-4",
+              "ex": "vl",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db2-5",
+              "ex": "po",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db2-6",
+              "ex": "bm",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db2-7",
+              "ex": "vl",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db2-8",
+              "ex": "ant",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            }
+          ]
+        },
+        {
+          "id": "db3",
+          "name": "Día 3",
+          "items": [
+            {
+              "id": "db3-1",
+              "ex": "hip",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db3-2",
+              "ex": "vl",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db3-3",
+              "ex": "isq",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db3-4",
+              "ex": "ha",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db3-5",
+              "ex": "abd",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db3-6",
+              "ex": "adu",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db3-7",
+              "ex": "gem",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db3-8",
+              "ex": "crun",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            }
+          ]
+        },
+        {
+          "id": "db4",
+          "name": "Día 4",
+          "items": [
+            {
+              "id": "db4-1",
+              "ex": "dor",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db4-2",
+              "ex": "gem",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db4-3",
+              "ex": "pp",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db4-4",
+              "ex": "ant",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db4-5",
+              "ex": "pm",
+              "sets": 4,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db4-6",
+              "ex": "apo",
+              "sets": 4,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db4-7",
+              "ex": "tpa",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db4-8",
+              "ex": "bmq",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            }
+          ]
+        },
+        {
+          "id": "db5",
+          "name": "Día 5",
+          "items": [
+            {
+              "id": "db5-1",
+              "ex": "hip",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db5-2",
+              "ex": "apo",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db5-3",
+              "ex": "isq",
+              "sets": 4,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db5-4",
+              "ex": "cua",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db5-5",
+              "ex": "abd",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db5-6",
+              "ex": "adu",
+              "sets": 3,
+              "ds": true,
+              "ss": false
+            },
+            {
+              "id": "db5-7",
+              "ex": "gem",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db5-8",
+              "ex": "crun",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            }
+          ]
+        },
+        {
+          "id": "db6",
+          "name": "Día 6",
+          "items": [
+            {
+              "id": "db6-1",
+              "ex": "dor",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db6-2",
+              "ex": "gem",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db6-3",
+              "ex": "pp",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db6-4",
+              "ex": "ant",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db6-5",
+              "ex": "pin",
+              "sets": 3,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db6-6",
+              "ex": "bmq",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            },
+            {
+              "id": "db6-7",
+              "ex": "tsc",
+              "sets": 2,
+              "ds": false,
+              "ss": true
+            },
+            {
+              "id": "db6-8",
+              "ex": "vl",
+              "sets": 3,
+              "ds": false,
+              "ss": false
+            }
+          ]
+        }
+      ],
+      "activeDay": "db1"
+    }
+  ],
+  "curPlan": "pa",
+  "v": 20
+}

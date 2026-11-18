@@ -2,6 +2,9 @@
 // Se compila y testea en el Moto con settings-core.gradle.kts.
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    // DTOs de backup/plan con kotlinx-serialization (GIM-8). Sólo :core lo necesita:
+    // el plugin se declara acá y no en el root (ver el comentario de build.gradle.kts).
+    alias(libs.plugins.kotlin.serialization)
 }
 
 java {
@@ -19,6 +22,7 @@ kotlin {
 
 dependencies {
     implementation(libs.kotlinx.datetime)
+    implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit4)
     testImplementation(libs.kotlin.test.junit)
