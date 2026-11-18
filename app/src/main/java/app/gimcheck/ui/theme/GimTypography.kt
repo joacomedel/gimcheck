@@ -170,6 +170,13 @@ object GimText {
  * | `bodyLarge` | `cuerpo` (15) |
  * | `bodyMedium` / `bodySmall` | `detalle` (13) |
  * | `labelMedium` / `labelSmall` | `etiqueta` (12/500) |
+ *
+ * **No se leen de vuelta en la JVM.** En material3 1.4.0 (BOM 2026.09.00) `Typography`
+ * tiene dos constructores (30 args y 15 `@OptIn(Expressive)`) y los `val` del primario
+ * devuelven `null` al leer por la ruta de 15, aunque `MaterialTheme(typography =
+ * GimTypography)` funcione bien en el APK. Por eso `TokensContractTest` valida el mapeo
+ * contra `GimText` (la fuente de esta tabla) y sólo hace un smoke de construcción; el
+ * aspecto en pantalla es deuda de la verificación visual (GIM-15).
  */
 val GimTypography: Typography = Typography(
     displayLarge = GimText.display,

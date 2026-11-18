@@ -135,7 +135,8 @@ Los estilos viven en `ui/theme/GimTypography.kt` (`GimText.display`, `GimText.st
 label de un botón —rol que esta tabla no fija— es **15 sp IBM Plex 600**: 12 sp en un botón
 de 52 dp se ve chico. Los 15 roles de `MaterialTheme.typography` se llenan a propósito con
 esos estilos: un rol sin asignar cae a Roboto y una app de dos familias con un `AlertDialog`
-en Roboto se nota.
+en Roboto se nota. El mapeo se valida contra `GimText`, no leyendo `Typography` de vuelta:
+en material3 1.4.0 esos roles devuelven `null` en la JVM (§11).
 
 ## 5. Componentes
 
@@ -244,7 +245,13 @@ Errores: texto en `bad` + "Reintentar". Nunca un `Toast` como única señal.
   `lint` + los tests de `:core`.
 - El contrato de §3 y §4 tiene test propio y corre en cada push: `:app:testDebugUnitTest` →
   `TokensContractTest` (valores de la tabla, contraste WCAG de todo par de texto, escala
-  tipográfica, cifras tabulares y que los 15 roles de Material 3 estén mapeados).
+  tipográfica, cifras tabulares y que los 15 roles de Material 3 salgan de `GimText` con la
+  familia, el peso y el `tnum` del contrato).
+- Los roles de `Typography` **no** se leen de vuelta: en material3 1.4.0 (BOM 2026.09.00)
+  `displayLarge`, `bodyLarge`, … devuelven `null` en la JVM por la ruta del constructor de 15
+  argumentos, aunque el tema funcione en el APK. Por eso el gate es sobre `GimText` (la fuente
+  del mapeo) más un smoke de que `Typography` se construye; lo que se pinta se mira en el
+  teléfono.
 - Screenshot de UI con Robolectric es opcional (`captureToImage`), nunca gate de merge.
 - La verificación visual la hace el dueño instalando el APK. Cada ticket de UI lista **3 bullets
   de qué mirar** en el teléfono (ej.: "la cuenta regresiva no salta", "el botón no lo tapa el

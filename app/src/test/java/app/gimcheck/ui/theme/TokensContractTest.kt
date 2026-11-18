@@ -2,9 +2,12 @@ package app.gimcheck.ui.theme
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.pow
@@ -24,6 +27,9 @@ import kotlin.math.pow
  *    Roboto) y una pantalla que use `Button` se ve de otra app.
  *
  * Corre en la JVM: `Color`, `TextStyle` y `Typography` son Kotlin puro, no tocan Android.
+ *
+ * Ojo con `Typography`: en material3 1.4.0 los roles **no son legibles de vuelta** en la
+ * JVM (devuelven `null`); por eso el mapeo se valida contra `GimText`, que es su fuente.
  */
 class TokensContractTest {
 
@@ -209,38 +215,80 @@ class TokensContractTest {
             }
     }
 
+    /**
+     * Un rol de `MaterialTheme.typography` con el estilo de `GimText` que le toca y lo
+     * que ese estilo tiene que cumplir (tabla de §4).
+     */
+    private class RolM3(
+        val rol: String,
+        val estilo: TextStyle,
+        val familia: FontFamily,
+        val peso: FontWeight,
+        val tabular: Boolean,
+    )
+
+    /**
+     * El mapeo rol M3 → estilo de `GimTypography`, declarado como dato.
+     *
+     * **No se lee de vuelta de `Typography`** a propósito: en material3 1.4.0 (BOM
+     * 2026.09.00) los quince `val` de `Typography` devuelven `null` en la JVM aunque el
+     * APK los use bien —hay dos constructores y los del primario no quedan asignados por
+     * la ruta de 15 argumentos—. La válvula real es esta tabla contra `GimText`, que es
+     * la fuente del mapeo; que el tema pinte lo que dice lo mira el dueño en el teléfono
+     * (GIM-15). Ver el comentario de `GimTypography` y §11 de `docs/diseno.md`.
+     */
+    private val rolesDeM3: List<RolM3> = listOf(
+        RolM3("displayLarge", GimText.display, BarlowCondensed, FontWeight.Bold, true),
+        RolM3("displayMedium", GimText.stat, BarlowCondensed, FontWeight.SemiBold, true),
+        RolM3("displaySmall", GimText.titulo, BarlowCondensed, FontWeight.SemiBold, true),
+        RolM3("headlineLarge", GimText.titulo, BarlowCondensed, FontWeight.SemiBold, true),
+        RolM3("headlineMedium", GimText.section, BarlowCondensed, FontWeight.SemiBold, true),
+        RolM3("headlineSmall", GimText.subtitulo, IbmPlexSans, FontWeight.SemiBold, false),
+        RolM3("titleLarge", GimText.section, BarlowCondensed, FontWeight.SemiBold, true),
+        RolM3("titleMedium", GimText.subtitulo, IbmPlexSans, FontWeight.SemiBold, false),
+        RolM3("titleSmall", GimText.boton, IbmPlexSans, FontWeight.SemiBold, false),
+        RolM3("bodyLarge", GimText.cuerpo, IbmPlexSans, FontWeight.Normal, true),
+        RolM3("bodyMedium", GimText.detalle, IbmPlexSans, FontWeight.Normal, true),
+        RolM3("bodySmall", GimText.detalle, IbmPlexSans, FontWeight.Normal, true),
+        RolM3("labelLarge", GimText.boton, IbmPlexSans, FontWeight.SemiBold, false),
+        RolM3("labelMedium", GimText.etiqueta, IbmPlexSans, FontWeight.Medium, true),
+        RolM3("labelSmall", GimText.etiqueta, IbmPlexSans, FontWeight.Medium, true),
+    )
+
     @Test
-    fun `solo se usan las dos familias y todos los roles de M3 estan mapeados`() {
-        val roles: List<Pair<String, Pair<TextStyle?, TextStyle>>> = listOf(
-            "displayLarge" to (GimTypography.displayLarge to GimText.display),
-            "displayMedium" to (GimTypography.displayMedium to GimText.stat),
-            "displaySmall" to (GimTypography.displaySmall to GimText.titulo),
-            "headlineLarge" to (GimTypography.headlineLarge to GimText.titulo),
-            "headlineMedium" to (GimTypography.headlineMedium to GimText.section),
-            "headlineSmall" to (GimTypography.headlineSmall to GimText.subtitulo),
-            "titleLarge" to (GimTypography.titleLarge to GimText.section),
-            "titleMedium" to (GimTypography.titleMedium to GimText.subtitulo),
-            "titleSmall" to (GimTypography.titleSmall to GimText.boton),
-            "bodyLarge" to (GimTypography.bodyLarge to GimText.cuerpo),
-            "bodyMedium" to (GimTypography.bodyMedium to GimText.detalle),
-            "bodySmall" to (GimTypography.bodySmall to GimText.detalle),
-            "labelLarge" to (GimTypography.labelLarge to GimText.boton),
-            "labelMedium" to (GimTypography.labelMedium to GimText.etiqueta),
-            "labelSmall" to (GimTypography.labelSmall to GimText.etiqueta),
+    fun `los 15 roles de M3 salen de las dos familias y con la cifra que toca`() {
+        // Los 15 roles, uno por nombre: si alguien agrega o renombra un rol en el mapeo
+        // esta cuenta lo delata (un rol sin asignar cae a Roboto, y una app de dos
+        // familias con un `AlertDialog` en Roboto se nota).
+        assertEquals("roles declarados", 15, rolesDeM3.size)
+        assertEquals("roles repetidos", 15, rolesDeM3.map { it.rol }.toSet().size)
+        assertEquals(
+            "familias en uso",
+            setOf(BarlowCondensed, IbmPlexSans),
+            rolesDeM3.map { it.estilo.fontFamily }.toSet(),
         )
-        // Un rol sin asignar no queda vacío: queda con la tipografía default de
-        // Material (Roboto) y su familia es `null` o `FontFamily.Default`.
-        val problemas = roles.mapNotNull { (rol, estilos) ->
-            val real = estilos.first
-            when {
-                real == null -> "$rol=null"
-                real != estilos.second -> "$rol=no-es-el-estilo-del-contrato"
-                real.fontFamily != BarlowCondensed && real.fontFamily != IbmPlexSans ->
-                    "$rol=familia-${real.fontFamily}"
+        val problemas = rolesDeM3.mapNotNull { rol ->
+            val real = when {
+                rol.estilo.fontFamily != rol.familia -> "familia=${rol.estilo.fontFamily}"
+                rol.estilo.fontWeight != rol.peso -> "peso=${rol.estilo.fontWeight}"
+                (rol.estilo.fontFeatureSettings == TABULAR_NUMBERS) != rol.tabular ->
+                    "tnum=${rol.estilo.fontFeatureSettings}"
+                rol.estilo.fontSize.value <= 0f -> "sin tamaño"
                 else -> null
             }
+            "${rol.rol}: $real"
         }
-        assertTrue("roles de MaterialTheme.typography fuera del contrato: $problemas", problemas.isEmpty())
+        assertTrue("roles fuera del contrato: $problemas", problemas.isEmpty())
+    }
+
+    @Test
+    fun `GimTypography se construye en la JVM y el tema tiene los dos esquemas`() {
+        // Smoke de proyección, no verificación visual: si un `R.font.*` no estuviera en
+        // `res/font` el build no compila, y si el init de `GimTypography` reventara esto
+        // falla al tocar la clase. Lo que se ve en pantalla lo mira el dueño (GIM-15).
+        assertNotNull("GimTypography no se inicializó", GimTypography)
+        assertNotNull("ColorScheme claro", LightColors.toColorScheme())
+        assertNotNull("ColorScheme oscuro", DarkColors.toColorScheme())
     }
 
     // --- proyección a Material 3 --------------------------------------------
