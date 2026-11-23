@@ -2,12 +2,14 @@ package app.gimcheck.rest
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -84,8 +86,38 @@ object RestPermissions {
         }
     }
 
-    /** `SYSTEM_ALERT_WINDOW`: el respaldo del full-screen intent (overlay del aviso). */
+    /**
+     * `SYSTEM_ALERT_WINDOW`: **la única vía que aparece encima de otra app** con el
+     * teléfono desbloqueado (GIM-44). El FSI no sirve en ese escenario: Android lo
+     * degrada a heads-up. Por eso el permiso se pide explícitamente y no como opcional
+     * silencioso.
+     */
     fun overlayGranted(context: Context): Boolean = Settings.canDrawOverlays(context)
+
+    /** `PowerManager.isInteractive()`: `false` = pantalla apagada. */
+    fun deviceInteractive(context: Context): Boolean =
+        context.getSystemService(PowerManager::class.java)?.isInteractive ?: true
+
+    /** `KeyguardManager.isKeyguardLocked()`: `true` = teléfono bloqueado. */
+    fun keyguardLocked(context: Context): Boolean =
+        context.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked ?: false
+
+    /**
+     * Los cinco valores que deciden el camino del aviso, leídos del sistema ahora.
+     *
+     * La app en primer plano la aporta [AppVisibility] (el mismo estado que usan el
+     * servicio y el receptor): acá no se inventa.
+     */
+    fun screenState(
+        context: Context,
+        appInForeground: Boolean = AppVisibility.isForeground,
+    ): RestScreenState = RestScreenState(
+        appInForeground = appInForeground,
+        deviceInteractive = deviceInteractive(context),
+        keyguardLocked = keyguardLocked(context),
+        fullScreenAllowed = fullScreenIntentGranted(context),
+        overlayAllowed = overlayGranted(context),
+    )
 
     /** Pide "aparecer encima de otras apps"; se concede en una pantalla de Ajustes. */
     fun requestOverlay(context: Context) {

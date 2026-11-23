@@ -100,6 +100,8 @@ class RestAlerterTest {
         fixture: Fixture,
         fullScreen: Boolean = true,
         overlayAllowed: Boolean = false,
+        interactive: Boolean = true,
+        locked: Boolean = false,
         notifier: RestDoneNotifier = fixture.notifier,
     ): RestAlerter = RestAlerter(
         context = app,
@@ -109,6 +111,8 @@ class RestAlerterTest {
         overlay = fixture.overlay,
         fullScreenAllowed = { fullScreen },
         overlayAllowed = { overlayAllowed },
+        deviceInteractive = { interactive },
+        keyguardLocked = { locked },
     )
 
     private fun settings(
@@ -131,13 +135,37 @@ class RestAlerterTest {
     @Test
     fun `SCREEN_VIBRATE pide pantalla completa y vibra, sin sonido`() {
         val fixture = Fixture()
-        val plan = alerter(fixture).alert(settings(AlertMode.SCREEN_VIBRATE), inForeground = false)
+        val plan = alerter(fixture, locked = true)
+            .alert(settings(AlertMode.SCREEN_VIBRATE), inForeground = false)
 
         assertEquals(RestScreenDelivery.FULL_SCREEN_INTENT, plan.screen)
         assertEquals(1, fixture.notifier.plans.size)
         assertEquals(listOf(RestVibration.DOUBLE), fixture.vibrator.patterns)
         assertTrue(fixture.sound.played.isEmpty())
         assertEquals(0, fixture.overlay.shown)
+    }
+
+    @Test
+    fun `desbloqueado con otra app se dibuja encima aunque el FSI este concedido`() {
+        // El bug real del dueño (GIM-44): estaba en un juego con la pantalla encendida.
+        val fixture = Fixture()
+        val plan = alerter(fixture, fullScreen = true, overlayAllowed = true, locked = false)
+            .alert(settings(AlertMode.SCREEN_VIBRATE), inForeground = false)
+
+        assertEquals(RestScreenDelivery.OVERLAY, plan.screen)
+        assertEquals(1, fixture.overlay.shown)
+        assertEquals(1, fixture.notifier.plans.size)
+    }
+
+    @Test
+    fun `desbloqueado sin overlay cae a heads-up aunque el FSI este concedido`() {
+        val fixture = Fixture()
+        val plan = alerter(fixture, fullScreen = true, overlayAllowed = false, locked = false)
+            .alert(settings(AlertMode.SCREEN), inForeground = false)
+
+        assertEquals(RestScreenDelivery.HEADS_UP, plan.screen)
+        assertEquals(0, fixture.overlay.shown)
+        assertEquals(1, fixture.notifier.plans.size)
     }
 
     @Test
@@ -210,7 +238,7 @@ class RestAlerterTest {
     @Test
     fun `la repeticion vuelve a vibrar y sonar sin republicar ni abrir pantalla`() {
         val fixture = Fixture()
-        val target = alerter(fixture, overlayAllowed = true)
+        val target = alerter(fixture, overlayAllowed = true, locked = true)
         target.alert(settings(AlertMode.SCREEN_VIBRATE_SOUND), inForeground = false)
         target.repeat(settings(AlertMode.SCREEN_VIBRATE_SOUND))
 
@@ -225,12 +253,27 @@ class RestAlerterTest {
     @Test
     fun `la notificacion sale por el canal de fin de descanso`() {
         val fixture = Fixture()
-        alerter(fixture, notifier = SystemRestDoneNotifier(app) { true })
+        alerter(fixture, locked = true, notifier = SystemRestDoneNotifier(app) { true })
             .alert(settings(AlertMode.SCREEN_VIBRATE), inForeground = false)
 
         val notification = notifications().single()
         assertEquals(RestNotifications.CHANNEL_REST_DONE, notification.channelId)
         assertNotNull("con FSI concedido la notificación lo lleva", notification.fullScreenIntent)
+    }
+
+    @Test
+    fun `el overlay publicado con el telefono desbloqueado no finge un FSI`() {
+        val fixture = Fixture()
+        alerter(fixture, overlayAllowed = true, locked = false, notifier = SystemRestDoneNotifier(app) { true })
+            .alert(settings(AlertMode.SCREEN), inForeground = false)
+
+        val notification = notifications().single()
+        assertEquals(RestNotifications.CHANNEL_REST_DONE, notification.channelId)
+        assertNull(
+            "el camino es el overlay; un FSI acá se degradaría a heads-up",
+            notification.fullScreenIntent,
+        )
+        assertEquals(1, fixture.overlay.shown)
     }
 
     @Test

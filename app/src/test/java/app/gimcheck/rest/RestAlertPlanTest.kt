@@ -16,21 +16,39 @@ import org.junit.Test
  * 1. las 8 combinaciones producen el conjunto exacto de acciones (pantalla / vibración /
  *    sonido);
  * 2. con la app en primer plano **nunca** se pide pantalla (el aviso es inline);
- * 3. la cadena de respaldo: full-screen intent → overlay → heads-up;
- * 4. los tres patrones de `restVibration` son distintos.
+ * 3. la regla del bug real (GIM-44): con el teléfono **desbloqueado y en uso** el
+ *    full-screen intent se degrada a heads-up, así que se usa overlay si está
+ *    concedido, aunque el FSI también lo esté;
+ * 4. con la pantalla apagada o el teléfono bloqueado el FSI sí se usa;
+ * 5. sin FSI ni overlay queda el heads-up: nunca silencio;
+ * 6. los tres patrones de `restVibration` son distintos.
  */
 class RestAlertPlanTest {
+
+    private fun state(
+        foreground: Boolean = false,
+        interactive: Boolean = true,
+        locked: Boolean = false,
+        fullScreen: Boolean = true,
+        overlay: Boolean = false,
+    ) = RestScreenState(
+        appInForeground = foreground,
+        deviceInteractive = interactive,
+        keyguardLocked = locked,
+        fullScreenAllowed = fullScreen,
+        overlayAllowed = overlay,
+    )
 
     private fun plan(
         mode: AlertMode,
         foreground: Boolean = false,
+        interactive: Boolean = true,
+        locked: Boolean = false,
         fullScreen: Boolean = true,
         overlay: Boolean = false,
     ) = RestAlertPlans.forMode(
         mode = mode,
-        appInForeground = foreground,
-        fullScreenAllowed = fullScreen,
-        overlayAllowed = overlay,
+        state = state(foreground, interactive, locked, fullScreen, overlay),
     )
 
     @Test
@@ -47,7 +65,8 @@ class RestAlertPlanTest {
         )
         AlertMode.entries.forEach { mode ->
             val (screen, vibrate, sound) = expected.getValue(mode)
-            val resolved = plan(mode)
+            // Bloqueado para que lo único que se evalúe sea el conjunto de acciones.
+            val resolved = plan(mode, locked = true)
             assertEquals("pantalla de $mode", screen, resolved.screen != RestScreenDelivery.NONE)
             assertEquals("vibración de $mode", vibrate, resolved.vibrate)
             assertEquals("sonido de $mode", sound, resolved.sound)
@@ -56,7 +75,7 @@ class RestAlertPlanTest {
 
     @Test
     fun `NONE no dispara nada y aun asi no rompe la notificacion`() {
-        val resolved = plan(AlertMode.NONE, fullScreen = true)
+        val resolved = plan(AlertMode.NONE, locked = true)
         assertEquals(RestScreenDelivery.NONE, resolved.screen)
         assertFalse(resolved.vibrate)
         assertFalse(resolved.sound)
@@ -71,7 +90,7 @@ class RestAlertPlanTest {
             AlertMode.SCREEN_SOUND,
             AlertMode.SCREEN_VIBRATE_SOUND,
         ).forEach { mode ->
-            val resolved = plan(mode, foreground = true, fullScreen = true, overlay = true)
+            val resolved = plan(mode, foreground = true, locked = true, overlay = true)
             assertEquals("pantalla con la app abierta en $mode", RestScreenDelivery.NONE, resolved.screen)
         }
         // La señal que sí queda es la vibración/sonido del modo.
@@ -81,18 +100,55 @@ class RestAlertPlanTest {
     }
 
     @Test
-    fun `el respaldo es full-screen intent y despues overlay y despues heads-up`() {
+    fun `desbloqueado y en uso el FSI no sirve y sin overlay queda heads-up`() {
+        // Este es el bug real: el FSI está concedido, pero Android lo degrada a heads-up
+        // con el teléfono desbloqueado y otra app en primer plano (GIM-44).
+        val resolved = plan(
+            AlertMode.SCREEN_VIBRATE,
+            interactive = true,
+            locked = false,
+            fullScreen = true,
+            overlay = false,
+        )
+        assertEquals(RestScreenDelivery.HEADS_UP, resolved.screen)
+        assertFalse(
+            "el plan no debe creer que el FSI va a tomar la pantalla",
+            state(interactive = true, locked = false, fullScreen = true).fullScreenCanTakeOver,
+        )
+    }
+
+    @Test
+    fun `desbloqueado y en uso con overlay concedido se dibuja encima aunque el FSI exista`() {
+        val resolved = plan(
+            AlertMode.SCREEN,
+            interactive = true,
+            locked = false,
+            fullScreen = true,
+            overlay = true,
+        )
+        assertEquals(RestScreenDelivery.OVERLAY, resolved.screen)
+    }
+
+    @Test
+    fun `con la pantalla apagada o el telefono bloqueado se usa el FSI`() {
         assertEquals(
+            "pantalla apagada",
             RestScreenDelivery.FULL_SCREEN_INTENT,
-            plan(AlertMode.SCREEN, fullScreen = true, overlay = false).screen,
+            plan(AlertMode.SCREEN, interactive = false, locked = false, fullScreen = true).screen,
         )
         assertEquals(
-            RestScreenDelivery.OVERLAY,
-            plan(AlertMode.SCREEN, fullScreen = false, overlay = true).screen,
+            "pantalla encendida pero bloqueada",
+            RestScreenDelivery.FULL_SCREEN_INTENT,
+            plan(AlertMode.SCREEN, interactive = true, locked = true, fullScreen = true).screen,
         )
+        assertTrue(state(locked = true, fullScreen = true).fullScreenCanTakeOver)
+    }
+
+    @Test
+    fun `bloqueado sin FSI el overlay no sirve porque no se ve sobre el keyguard`() {
         assertEquals(
             RestScreenDelivery.HEADS_UP,
-            plan(AlertMode.SCREEN, fullScreen = false, overlay = false).screen,
+            plan(AlertMode.SCREEN, locked = true, fullScreen = false, overlay = true).screen,
         )
     }
 

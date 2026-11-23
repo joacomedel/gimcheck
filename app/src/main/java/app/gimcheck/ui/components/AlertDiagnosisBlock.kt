@@ -14,7 +14,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import app.gimcheck.R
 import app.gimcheck.data.settings.ThemeMode
+import app.gimcheck.rest.AlertFire
 import app.gimcheck.rest.AlertDiagnosis
+import app.gimcheck.rest.RestScreenDelivery
 import app.gimcheck.ui.theme.GimCheckTheme
 import app.gimcheck.ui.theme.GimRadius
 import app.gimcheck.ui.theme.GimSpacing
@@ -22,13 +24,13 @@ import app.gimcheck.ui.theme.GimText
 import app.gimcheck.ui.theme.GimTheme
 
 /**
- * **Diagnóstico de alertas** (GIM-43): los valores reales que el sistema reporta sobre
- * el aviso de fin de descanso, en texto plano y sin adornos.
+ * **Diagnóstico de alertas** (GIM-43/GIM-44): los valores reales que el sistema reporta
+ * sobre el aviso de fin de descanso, en texto plano y sin adornos.
  *
  * No es una pantalla de depuración escondida: el dueño lo lee en el teléfono cuando el
- * aviso no se comporta como espera, y con esos cinco datos sabemos si falta un permiso,
- * si el canal quedó degradado o si el aviso se disparó con la app abierta (ahí no
- * corresponde la pantalla completa).
+ * aviso no se comporta como espera, y con esos datos sabemos si falta un permiso, si el
+ * canal quedó degradado, qué camino tomó el último aviso y si fue con la app abierta
+ * (ahí no corresponde la pantalla completa).
  *
  * [compact] dibuja una sola línea con `·` (para Ajustes); completo, el bloque con título.
  */
@@ -41,10 +43,13 @@ fun AlertDiagnosisBlock(
     val colors = GimTheme.colors
     val lines = listOf(
         stringResource(R.string.rest_diag_pantalla, siNo(diagnosis.fullScreenIntent)),
+        stringResource(R.string.rest_diag_overlay, siNo(diagnosis.overlay)),
         stringResource(R.string.rest_diag_alarmas, siNo(diagnosis.exactAlarms)),
         stringResource(R.string.rest_diag_notificaciones, siNo(diagnosis.notifications)),
         channelLine(diagnosis),
         stringResource(R.string.rest_diag_primer_plano, siNoDesconocido(diagnosis.inForegroundAtFire)),
+        stringResource(R.string.rest_diag_ultimo_aviso, deliveryLabel(diagnosis.lastDelivery)),
+        stringResource(R.string.rest_diag_pantalla_al_disparar, screenAtFire(diagnosis.fire)),
     )
     if (compact) {
         Text(
@@ -98,6 +103,26 @@ private fun importanceLabel(importance: Int): String = stringResource(
 )
 
 @Composable
+private fun deliveryLabel(delivery: RestScreenDelivery?): String = stringResource(
+    when (delivery) {
+        RestScreenDelivery.FULL_SCREEN_INTENT -> R.string.rest_diag_entrega_fsi
+        RestScreenDelivery.OVERLAY -> R.string.rest_diag_entrega_overlay
+        RestScreenDelivery.HEADS_UP -> R.string.rest_diag_entrega_heads_up
+        RestScreenDelivery.NONE -> R.string.rest_diag_entrega_none
+        null -> R.string.rest_diag_desconocido
+    },
+)
+
+@Composable
+private fun screenAtFire(fire: AlertFire?): String = when {
+    fire == null -> stringResource(R.string.rest_diag_desconocido)
+    fire.deviceInteractive == false -> stringResource(R.string.rest_diag_pantalla_apagada)
+    fire.keyguardLocked == true -> stringResource(R.string.rest_diag_pantalla_bloqueada)
+    fire.deviceInteractive == true -> stringResource(R.string.rest_diag_pantalla_desbloqueada)
+    else -> stringResource(R.string.rest_diag_desconocido)
+}
+
+@Composable
 private fun siNo(value: Boolean): String =
     stringResource(if (value) R.string.rest_diag_si else R.string.rest_diag_no)
 
@@ -115,12 +140,18 @@ private fun AlertDiagnosisBlockPreview() {
     GimCheckTheme(mode = ThemeMode.LIGHT) {
         AlertDiagnosisBlock(
             diagnosis = AlertDiagnosis(
-                fullScreenIntent = false,
+                fullScreenIntent = true,
                 exactAlarms = true,
                 notifications = true,
+                overlay = true,
                 channelId = "rest_done_v2",
-                channelImportance = NotificationManager.IMPORTANCE_DEFAULT,
-                inForegroundAtFire = false,
+                channelImportance = NotificationManager.IMPORTANCE_HIGH,
+                fire = AlertFire(
+                    inForeground = false,
+                    deviceInteractive = true,
+                    keyguardLocked = false,
+                    delivery = RestScreenDelivery.OVERLAY,
+                ),
             ),
             modifier = Modifier.padding(GimSpacing.l),
         )

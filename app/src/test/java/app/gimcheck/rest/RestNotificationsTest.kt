@@ -135,15 +135,42 @@ class RestNotificationsTest {
             fullScreenIntent = false,
             exactAlarms = true,
             notifications = false,
+            overlay = true,
             channelImportance = NotificationManager.IMPORTANCE_DEFAULT,
-            inForegroundAtFire = true,
+            fire = AlertFire(
+                inForeground = false,
+                deviceInteractive = true,
+                keyguardLocked = false,
+                delivery = RestScreenDelivery.OVERLAY,
+            ),
         )
 
         assertFalse(diagnosis.fullScreenIntent)
         assertTrue(diagnosis.exactAlarms)
         assertFalse(diagnosis.notifications)
+        assertTrue(diagnosis.overlay)
         assertEquals(NotificationManager.IMPORTANCE_DEFAULT, diagnosis.channelImportance)
-        assertEquals(true, diagnosis.inForegroundAtFire)
+        assertEquals(false, diagnosis.inForegroundAtFire)
+        assertEquals(RestScreenDelivery.OVERLAY, diagnosis.lastDelivery)
+    }
+
+    @Test
+    fun `el ultimo aviso guarda el camino y el estado de la pantalla`() {
+        RestAlertDiagnostics.clear(app)
+
+        RestAlertDiagnostics.recordFire(
+            context = app,
+            inForeground = false,
+            delivery = RestScreenDelivery.OVERLAY,
+            deviceInteractive = true,
+            keyguardLocked = false,
+        )
+
+        val fire = RestAlertDiagnostics.lastFire(app)
+        assertEquals(false, fire?.inForeground)
+        assertEquals(RestScreenDelivery.OVERLAY, fire?.delivery)
+        assertEquals(true, fire?.deviceInteractive)
+        assertEquals(false, fire?.keyguardLocked)
     }
 
     @Test

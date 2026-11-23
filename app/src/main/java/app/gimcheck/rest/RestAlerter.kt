@@ -46,7 +46,9 @@ class SystemRestDoneNotifier(
  * todos los permisos negados. Todo lo demás es una mejora sobre eso.
  *
  * La decisión ([RestAlertPlans]) está separada de la ejecución para que la matriz de
- * 8 modos se verifique en la JVM con dobles de vibración/sonido/overlay.
+ * 8 modos se verifique en la JVM con dobles de vibración/sonido/overlay. El estado del
+ * teléfono (pantalla encendida, bloqueo) entra como [RestScreenState] porque es lo que
+ * decide si el FSI funciona o hay que dibujar el overlay (GIM-44).
  */
 class RestAlerter(
     private val context: Context,
@@ -60,20 +62,38 @@ class RestAlerter(
     private val overlayAllowed: () -> Boolean = {
         RestPermissions.overlayGranted(context)
     },
+    private val deviceInteractive: () -> Boolean = {
+        RestPermissions.deviceInteractive(context)
+    },
+    private val keyguardLocked: () -> Boolean = {
+        RestPermissions.keyguardLocked(context)
+    },
 ) {
 
     /** El plan que corresponde a [settings] en este contexto (sin ejecutar nada). */
     fun plan(settings: AppSettings, inForeground: Boolean): RestAlertPlan =
-        RestAlertPlans.forMode(
-            mode = settings.alertMode,
-            appInForeground = inForeground,
-            fullScreenAllowed = fullScreenAllowed(),
-            overlayAllowed = overlayAllowed(),
-        )
+        plan(settings, screenState(inForeground))
+
+    /** Variante con el estado ya fijado (tests y ejecución real comparten la política). */
+    fun plan(settings: AppSettings, state: RestScreenState): RestAlertPlan =
+        RestAlertPlans.forMode(settings.alertMode, state)
+
+    /** El estado del teléfono ahora, con la visibilidad que informa el llamador. */
+    fun screenState(inForeground: Boolean): RestScreenState = RestScreenState(
+        appInForeground = inForeground,
+        deviceInteractive = deviceInteractive(),
+        keyguardLocked = keyguardLocked(),
+        fullScreenAllowed = fullScreenAllowed(),
+        overlayAllowed = overlayAllowed(),
+    )
 
     /** Avisa el fin del descanso. Devuelve lo que se hizo, para logs y tests. */
-    fun alert(settings: AppSettings, inForeground: Boolean): RestAlertPlan {
-        val plan = plan(settings, inForeground)
+    fun alert(settings: AppSettings, inForeground: Boolean): RestAlertPlan =
+        alert(settings, screenState(inForeground))
+
+    /** Variante con el estado ya congelado por el llamador (lo que hace el centro). */
+    fun alert(settings: AppSettings, state: RestScreenState): RestAlertPlan {
+        val plan = plan(settings, state)
         // Primero la notificación: es la garantía de que el aviso no queda en silencio
         // aunque el resto falle.
         notifier.post(plan)

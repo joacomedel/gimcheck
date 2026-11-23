@@ -29,11 +29,18 @@ import kotlinx.coroutines.launch
  * Los ajustes se leen de la base en segundo plano. Si la lectura falla se usa
  * [AppSettings.DEFAULT] (`SCREEN_VIBRATE`): **el aviso sale igual**, que es la regla de
  * §5 — nunca en silencio.
+ *
+ * El estado del teléfono ([RestScreenState]) se congela **al entrar** y es el mismo que
+ * usa el diagnóstico persistido: así el bloque de Ajustes dice exactamente por qué se
+ * eligió overlay, FSI o heads-up, y no una lectura posterior que puede haber cambiado.
  */
 object RestAlertCenter {
 
     /** Ventana del antirrebote: servicio, pantalla y alarma en el mismo segundo. */
     const val DEDUPE_MILLIS: Long = 3_000L
+
+    /** Segundos de la "prueba de un toque" de Ajustes (GIM-44). */
+    const val SELF_TEST_SECONDS: Int = 10
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -43,6 +50,7 @@ object RestAlertCenter {
     private val main = Handler(Looper.getMainLooper())
 
     /** `SystemClock.elapsedRealtime()` del último aviso; `0` = todavía ninguno. */
+    @Volatile
     private var lastAlertAt: Long = 0L
 
     /** `true` mientras haya una notificación de "descanso terminado" nuestra en la sombra. */
@@ -64,29 +72,47 @@ object RestAlertCenter {
         // Antirrebote: servicio, pantalla y alarma pueden coincidir en el mismo segundo.
         if (now - lastAlertAt < DEDUPE_MILLIS) return
         lastAlertAt = now
+        val state = RestPermissions.screenState(app, inForeground)
         scope.launch {
             val settings = readSettings(app)
-            main.post { fire(app, settings, inForeground) }
+            main.post { fire(app, settings, state) }
         }
     }
 
     /**
-     * El usuario interactuó (abrió la app o la pantalla de descanso): se corta la
-     * repetición y se retira la notificación. Sin aviso pendiente no hace nada — no se
-     * toca la notificación del cronómetro, que comparte id.
+     * "Probar el aviso" de Ajustes (GIM-44): programa el aviso real para dentro de
+     * [seconds] segundos por el mismo camino que el descanso (alarma exacta →
+     * [RestAlarmReceiver] → este objeto). Sirve para que el dueño lo dispare, salga de
+     * la app o bloquee el teléfono, y vea en 10 s lo que va a ver entrenando.
+     *
+     * @return `true` si quedó programado. Sin permiso de alarmas exactas usa
+     *   `setAndAllowWhileIdle` (inexacta): la prueba puede tardar hasta un minuto.
      */
-    fun dismiss(context: Context) {
-        repeater.stop()
-        if (!posted) return
-        posted = false
-        RestNotifications.cancelRestDone(context.applicationContext)
+    fun scheduleSelfTest(
+        context: Context,
+        seconds: Int = SELF_TEST_SECONDS,
+    ): Boolean {
+        val endsAt = System.currentTimeMillis() + seconds.coerceAtLeast(1) * 1_000L
+        // La prueba es "como si el descanso terminara": no hay cronómetro que cancelar.
+        return RestAlarmScheduler(context).scheduleSelfTest(endsAt)
     }
 
-    private fun fire(context: Context, settings: AppSettings, inForeground: Boolean) {
+    /**
+     * El usuario interactuó (abrió la app o la pantalla de descanso): se corta la
+     * repetición, se retira el overlay y la notificación. Sin aviso pendiente no hace
+     * nada — no se toca la notificación del cronómetro, que comparte id.
+     */
+    fun dismiss(context: Context) {
+        val app = context.applicationContext
+        repeater.stop()
+        SystemRestOverlay.hideAny(app)
+        if (!posted) return
+        posted = false
+        RestNotifications.cancelRestDone(app)
+    }
+
+    private fun fire(context: Context, settings: AppSettings, state: RestScreenState) {
         posted = true
-        // Lo que el dueño va a leer en la pantalla de diagnóstico (GIM-43): con `true`,
-        // que no se abra la pantalla completa es lo correcto (el aviso es inline).
-        RestAlertDiagnostics.recordFire(context, inForeground)
         val alerter = RestAlerter(
             context = context,
             notifier = SystemRestDoneNotifier(context),
@@ -94,11 +120,21 @@ object RestAlertCenter {
             sound = SystemRestSoundPlayer(context),
             overlay = SystemRestOverlay(context),
         )
-        val plan = alerter.alert(settings, inForeground)
+        val plan = alerter.alert(settings, state)
+        // Lo que el dueño va a leer en el diagnóstico (GIM-43/44): con `true`, que no se
+        // abra la pantalla completa es lo correcto (el aviso es inline); con overlay,
+        // "último aviso: overlay"; y si estaba desbloqueado, el FSI no era una opción.
+        RestAlertDiagnostics.recordFire(
+            context = context,
+            inForeground = state.appInForeground,
+            delivery = plan.screen,
+            deviceInteractive = state.deviceInteractive,
+            keyguardLocked = state.keyguardLocked,
+        )
         // Repetir sólo si hay algo que repetir y la app no está mostrando el aviso
         // inline: ahí el usuario ya lo ve y repetir sería ruido.
         val repeat = settings.restAlertRepeat
-        if (!inForeground && repeat > 0 && plan.hasSignal) {
+        if (!state.appInForeground && repeat > 0 && plan.hasSignal) {
             repeater.start(repeat) { alerter.repeat(settings) }
         }
     }
@@ -107,5 +143,19 @@ object RestAlertCenter {
         GimCheckApp.container(context as Application).settings.current()
     } catch (error: Throwable) {
         AppSettings.DEFAULT
+    }
+
+    /**
+     * Vuelve al estado inicial para un test: sin antirrebote pendiente, sin overlay y
+     * sin notificación recordada. El antirrebote es estático porque el servicio y la
+     * alarma comparten proceso; los tests instrumentados lo necesitan entre casos.
+     */
+    internal fun resetForTest(context: Context) {
+        lastAlertAt = SystemClock.elapsedRealtime() - DEDUPE_MILLIS - 1
+        posted = false
+        repeater.stop()
+        SystemRestOverlay.hideAny(context.applicationContext)
+        RestNotifications.cancelRestDone(context.applicationContext)
+        RestAlertDiagnostics.clear(context.applicationContext)
     }
 }

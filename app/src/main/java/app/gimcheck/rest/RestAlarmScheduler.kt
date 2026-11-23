@@ -56,6 +56,49 @@ class RestAlarmScheduler(
         manager.cancel(operation())
     }
 
+    /**
+     * Programa el aviso de la **prueba de un toque** de Ajustes (GIM-44) por el mismo
+     * receptor que el descanso real, con un `PendingIntent` propio para no pisar una
+     * alarma de descanso en curso.
+     *
+     * Si `canScheduleExactAlarms()` está negado se usa `setAndAllowWhileIdle` (inexacta,
+     * puede demorar hasta ~1 min): la prueba tiene que funcionar igual, aunque llegue
+     * unos segundos tarde.
+     */
+    @SuppressLint("ScheduleExactAlarm")
+    fun scheduleSelfTest(endsAtMillis: Long): Boolean {
+        if (endsAtMillis <= System.currentTimeMillis()) return false
+        val manager = app.getSystemService(AlarmManager::class.java) ?: return false
+        return try {
+            if (canScheduleExactAlarms()) {
+                manager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    endsAtMillis,
+                    selfTestOperation(),
+                )
+            } else {
+                manager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    endsAtMillis,
+                    selfTestOperation(),
+                )
+            }
+            true
+        } catch (e: SecurityException) {
+            // Permiso revocado entre el chequeo y la llamada: queda la inexacta.
+            try {
+                manager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    endsAtMillis,
+                    selfTestOperation(),
+                )
+                true
+            } catch (second: SecurityException) {
+                false
+            }
+        }
+    }
+
     /** El estado real del permiso, para la explicación en contexto y para [schedule]. */
     fun canScheduleExactAlarms(): Boolean =
         canScheduleExact ?: RestPermissions.exactAlarmsGranted(app)
@@ -68,7 +111,16 @@ class RestAlarmScheduler(
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
+    /** Alarma de la prueba de Ajustes: request code propio, no toca la del descanso. */
+    private fun selfTestOperation(): PendingIntent = PendingIntent.getBroadcast(
+        app,
+        REQUEST_SELF_TEST,
+        RestAlarmReceiver.intent(app),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
     companion object {
         const val REQUEST_CODE: Int = 2042
+        const val REQUEST_SELF_TEST: Int = 2045
     }
 }

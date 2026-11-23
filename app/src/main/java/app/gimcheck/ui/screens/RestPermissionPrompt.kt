@@ -23,11 +23,14 @@ import app.gimcheck.rest.RestPermissions
  * una sesión activa, no al abrir la app. Es la regla del ADR 0004 y de la política de
  * Android: un diálogo al arrancar sin explicación es un rechazo seguro.
  *
- * Los tres, en este orden y de a uno:
+ * Los cuatro, en este orden y de a uno:
  *
  * - `POST_NOTIFICATIONS` con el diálogo del sistema (13+).
  * - Alarmas exactas: no hay diálogo, se abre `ACTION_REQUEST_SCHEDULE_EXACT_ALARM`.
  * - Pantalla completa (`USE_FULL_SCREEN_INTENT`, 14+): `ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT`.
+ * - **Aparecer encima de otras apps** (`SYSTEM_ALERT_WINDOW`, GIM-44): es la única vía
+ *   que interrumpe con el teléfono desbloqueado y otra app en primer plano, donde el
+ *   full-screen intent se degrada a heads-up.
  *
  * Si el usuario niega cualquiera, **no pasa nada**: el aviso cae al siguiente escalón
  * (overlay → heads-up) y el cronómetro sigue con el servicio en primer plano. El texto
@@ -43,6 +46,7 @@ internal fun RestPermissionPrompt(active: Boolean) {
     var needsNotifications by rememberSaveable { mutableStateOf(false) }
     var needsExact by rememberSaveable { mutableStateOf(false) }
     var needsFullScreen by rememberSaveable { mutableStateOf(false) }
+    var needsOverlay by rememberSaveable { mutableStateOf(false) }
 
     val notificationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -59,18 +63,20 @@ internal fun RestPermissionPrompt(active: Boolean) {
             !RestPermissions.notificationsGranted(context)
         needsExact = !RestPermissions.exactAlarmsGranted(context)
         // El modo por defecto (`SCREEN_VIBRATE`) incluye pantalla, y el selector vive en
-        // Ajustes (GIM-29): si el permiso falta se ofrece una vez, con su explicación.
+        // Ajustes: si el permiso falta se ofrece una vez, con su explicación.
         // Con la app en primer plano el FSI no se usa, pero el pedido no estorba.
         needsFullScreen = !RestPermissions.fullScreenIntentGranted(context)
+        needsOverlay = !RestPermissions.overlayGranted(context)
     }
 
-    if (!needsNotifications && !needsExact && !needsFullScreen) return
+    if (!needsNotifications && !needsExact && !needsFullScreen && !needsOverlay) return
 
     AlertDialog(
         onDismissRequest = {
             needsNotifications = false
             needsExact = false
             needsFullScreen = false
+            needsOverlay = false
         },
         title = { Text(stringResource(R.string.rest_permiso_titulo)) },
         text = {
@@ -79,7 +85,8 @@ internal fun RestPermissionPrompt(active: Boolean) {
                     when {
                         needsNotifications -> R.string.rest_permiso_texto
                         needsExact -> R.string.rest_permiso_alarmas_texto
-                        else -> R.string.rest_permiso_pantalla_texto
+                        needsFullScreen -> R.string.rest_permiso_pantalla_texto
+                        else -> R.string.rest_permiso_overlay_texto
                     },
                 ),
             )
@@ -96,9 +103,14 @@ internal fun RestPermissionPrompt(active: Boolean) {
                             needsExact = false
                         }
 
-                        else -> {
+                        needsFullScreen -> {
                             RestPermissions.requestFullScreenIntent(context)
                             needsFullScreen = false
+                        }
+
+                        else -> {
+                            RestPermissions.requestOverlay(context)
+                            needsOverlay = false
                         }
                     }
                 },
@@ -112,6 +124,7 @@ internal fun RestPermissionPrompt(active: Boolean) {
                     needsNotifications = false
                     needsExact = false
                     needsFullScreen = false
+                    needsOverlay = false
                 },
             ) {
                 Text(stringResource(R.string.rest_permiso_ahora_no))

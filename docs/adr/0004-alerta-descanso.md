@@ -4,11 +4,16 @@
 - **Contexto**: el pedido es "cuando termina el descanso toma control de la pantalla y me manda a
   la app". Android 14+ restringe `USE_FULL_SCREEN_INTENT` a apps de llamadas/alarma y Android 15+
   degrada el FSI a heads-up con el teléfono desbloqueado. Además los OEM matan servicios.
-- **Decisión**: tres capas independientes, en este orden:
+- **Decisión**: tres capas independientes, elegidas por el estado real del teléfono (no en un
+  orden fijo):
   1. **Notificación con full-screen intent** → `RestDoneActivity` (pantalla completa, muestra el
-     próximo ejercicio y "Empezar"). Permiso pedido en un paso guiado con explicación.
-  2. **Overlay** (`SYSTEM_ALERT_WINDOW`) si el FSI no está concedido.
-  3. **Heads-up de alta prioridad** con sonido/vibración del canal — nunca silencio.
+     próximo ejercicio y "Empezar"). Se usa **con la pantalla apagada o el teléfono bloqueado**,
+     que es cuando Android lo despliega de verdad.
+  2. **Overlay** (`SYSTEM_ALERT_WINDOW`) **con el teléfono desbloqueado y otra app en primer
+     plano** —un juego, el navegador—: ahí Android degrada el FSI a heads-up, así que el overlay
+     es la única vía que aparece encima.
+  3. **Heads-up de alta prioridad** con sonido/vibración del canal — nunca silencio — si no hay
+     FSI (bloqueado) ni overlay (desbloqueado).
   El cronómetro vive en un servicio en primer plano (`specialUse`) **y** en una alarma exacta de
   respaldo (`AlarmManager.setExactAndAllowWhileIdle`) con `canScheduleExactAlarms()` chequeado.
   El deadline se persiste (`rest_ends_at`), así que aunque el proceso muera, al abrir la app el
@@ -18,9 +23,7 @@
   Se acepta que en algunos teléfonos la "toma de pantalla" sea una notificación grande: es el
   comportamiento que Android permite, y se documenta en la app.
 
-## Restricciones de plataforma (fijadas 2026-11-18, estado `vigente`)
-
-No son decisiones de producto: son lo que Android y la política de Play permiten hoy. Si
+## Restricciones de plataforma (fijadas 2026-11-18, estado `vigente`)No son decisiones de producto: son lo que Android y la política de Play permiten hoy. Si
 cambian, se cambia acá y en el manifiesto, no se improvisa en un ticket.
 
 1. **`SCHEDULE_EXACT_ALARM`, nunca `USE_EXACT_ALARM`.** Google reserva `USE_EXACT_ALARM`
@@ -52,4 +55,26 @@ servicio, la alarma y la pantalla leen ese deadline; nadie guarda un "faltan N
 segundos". La notificación se reescribe cada 5 s (cada segundo en los últimos 10) con
 `setOnlyAlertOnce`, y el servicio se apaga solo al llegar a cero para no dejar una
 notificación colgada.
+
+## Corrección del orden de capas (2026-11-23, GIM-44)
+
+El orden "FSI → overlay → heads-up" era incorrecto para el caso de uso real: el dueño
+descansa mirando un juego con el teléfono **desbloqueado**. Con el teléfono en uso,
+Android convierte el full-screen intent en heads-up, así que pedir el permiso de FSI no
+alcanza y la app nunca aparecía encima. La decisión pasa a depender del estado del
+teléfono:
+
+| App | Pantalla | Camino |
+|---|---|---|
+| primer plano | cualquiera | inline en Entrenar (sin robar pantalla) |
+| segundo plano | apagada o bloqueada | full-screen intent (si está concedido) |
+| segundo plano | encendida y desbloqueada | overlay `SYSTEM_ALERT_WINDOW` |
+| segundo plano | — | heads-up (nunca silencio) |
+
+El permiso de overlay se pide explícitamente y la verificación no depende del dueño: el
+test instrumentado (`RestAlertDeviceTest`, emulador API 34 en CI) comprueba con `dumpsys
+window` que la ventana `TYPE_APPLICATION_OVERLAY` queda encima de otra app y que la
+alarma exacta despierta el receptor. La prueba de un toque de Ajustes programa el mismo
+camino a 10 s.
+
 

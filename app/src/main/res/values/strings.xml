@@ -238,19 +238,42 @@
     <string name="rest_done_empezar">Empezar serie</string>
     <string name="rest_overlay_texto">Descanso terminado · tocá para volver a GimCheck</string>
     <string name="rest_permiso_pantalla_texto">Para que la pantalla de "Descanso terminado" se abra sola con el teléfono bloqueado, Android pide este permiso aparte. Si no lo das, el aviso llega igual como notificación.</string>
+    <string name="rest_permiso_overlay_texto">Para interrumpirte cuando estás en otra app con el teléfono desbloqueado (un juego, el navegador) GimCheck necesita "aparecer encima de otras apps". Sin ese permiso, en ese caso sólo llega la notificación: Android no deja abrir la pantalla completa encima de otra app.</string>
+    <string name="rest_alert_ahora_no">Ahora no</string>
 
     <!--
-      Diagnóstico de alertas (GIM-43): valores reales leídos del sistema, sin adornos.
+      Prueba de un toque del aviso (GIM-44): programa la alarma real para dentro de 10 s
+      por el mismo camino que el descanso, así se verifica sin entrenar una sesión.
+    -->
+    <string name="rest_probar_boton">Probar el aviso (10 s)</string>
+    <string name="rest_probar_nota">Al tocarlo, el aviso llega en 10 segundos por el mismo camino que el fin de descanso. Salí de GimCheck o bloqueá el teléfono para ver lo que vas a ver entrenando.</string>
+    <string name="rest_probar_programado">Aviso programado en 10 s. Salí de la app ahora.</string>
+    <string name="rest_probar_fallo">No se pudo programar la prueba. Revisá el diagnóstico de arriba.</string>
+    <string name="rest_permiso_overlay_boton">Permitir aparecer encima</string>
+
+    <!--
+      Diagnóstico de alertas (GIM-43/44): valores reales leídos del sistema, sin adornos.
       El dueño los lee en la pantalla de descanso terminado o en Ajustes y con eso se
-      sabe si falta un permiso, si el canal quedó degradado o si la app estaba abierta.
+      sabe si falta un permiso, si el canal quedó degradado, qué capa se usó y si la app
+      estaba abierta.
     -->
     <string name="rest_diag_titulo">Diagnóstico de alertas</string>
     <string name="rest_diag_pantalla">pantalla completa: %1$s</string>
+    <string name="rest_diag_overlay">aparecer encima: %1$s</string>
     <string name="rest_diag_alarmas">alarmas exactas: %1$s</string>
     <string name="rest_diag_notificaciones">notificaciones: %1$s</string>
     <string name="rest_diag_canal">canal: %1$s · importancia %2$d (%3$s)</string>
     <string name="rest_diag_canal_sin_crear">canal: %1$s · todavía sin crear</string>
     <string name="rest_diag_primer_plano">app en primer plano al disparar: %1$s</string>
+    <string name="rest_diag_ultimo_aviso">último aviso: %1$s</string>
+    <string name="rest_diag_entrega_fsi">pantalla completa</string>
+    <string name="rest_diag_entrega_overlay">overlay encima</string>
+    <string name="rest_diag_entrega_heads_up">notificación heads-up</string>
+    <string name="rest_diag_entrega_none">sólo notificación</string>
+    <string name="rest_diag_pantalla_al_disparar">pantalla al disparar: %1$s</string>
+    <string name="rest_diag_pantalla_apagada">apagada</string>
+    <string name="rest_diag_pantalla_bloqueada">bloqueada</string>
+    <string name="rest_diag_pantalla_desbloqueada">desbloqueada</string>
     <string name="rest_diag_si">sí</string>
     <string name="rest_diag_no">no</string>
     <string name="rest_diag_desconocido">—</string>
