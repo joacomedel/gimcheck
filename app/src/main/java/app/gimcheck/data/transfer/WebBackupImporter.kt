@@ -54,7 +54,7 @@ sealed interface WebImportOutcome {
  * El seed del primer arranque usa el mismo escritor ([SnapshotWriter]); este camino es
  * para una instalación que ya tiene datos.
  */
-class WebBackupImporter(
+internal class WebBackupImporter(
     private val db: AppDatabase,
     private val settings: SettingsRepository,
     private val io: CoroutineDispatcher = Dispatchers.IO,

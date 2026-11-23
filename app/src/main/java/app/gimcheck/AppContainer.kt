@@ -56,7 +56,7 @@ class AppContainer(context: Context) {
      * Import de un backup de la web desde Ajustes (GIM-45). Reemplaza rutinas y
      * catálogo en una transacción y conserva el historial; ver [WebBackupImporter].
      */
-    val webBackup: WebBackupImporter = WebBackupImporter(database, settings)
+    internal val webBackup: WebBackupImporter = WebBackupImporter(database, settings)
 
     private val seedImporter: SeedImporter = SeedImporter(database)
 
