@@ -84,7 +84,11 @@ class WebBackupImporterTest {
 
         assertTrue(second is WebImportOutcome.Imported)
         assertEquals(Triple(2, 32, 15), counts())
-        assertEquals(12, db.routineDao().daysOf(activeId).size)
+        assertEquals(
+            "12 días entre las dos rutinas, sin duplicar",
+            12,
+            db.routineDao().observeAll().first().sumOf { db.routineDao().daysOf(it.id).size },
+        )
     }
 
     @Test
