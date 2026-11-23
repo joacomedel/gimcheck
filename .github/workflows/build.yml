@@ -148,11 +148,13 @@ jobs:
             -camera-back none -camera-front none
           script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
 
-      - name: Reportes instrumentados (sólo si algo falló)
-        if: failure()
+      - name: Resultados instrumentados (siempre)
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: gimcheck-instrumented-reports
-          path: app/build/reports/androidTests/
-          if-no-files-found: ignore
+          name: gimcheck-instrumented-results
+          path: |
+            app/build/outputs/androidTest-results/
+            app/build/reports/androidTests/
+          if-no-files-found: warn
           retention-days: 7
