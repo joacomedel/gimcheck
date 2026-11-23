@@ -64,7 +64,8 @@ fun AjustesScreen(
     val diagnosis = remember(context, refresh) { RestAlertDiagnostics.collect(context) }
     var selfTestNote by remember { mutableStateOf<Int?>(null) }
     var pendingImport by remember { mutableStateOf<PendingImport?>(null) }
-    var importResult by remember { mutableStateOf<String?>(null) }
+    var importOutcome by remember { mutableStateOf<WebImportOutcome?>(null) }
+    var readError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     DisposableEffect(lifecycle) {
@@ -90,9 +91,8 @@ fun AjustesScreen(
                     null
                 }
             }
-            if (text.isNullOrBlank()) {
-                importResult = context.getString(R.string.datos_import_error_lectura)
-            } else {
+            readError = text.isNullOrBlank()
+            if (!readError) {
                 pendingImport = PendingImport(
                     name = uri.lastPathSegment?.substringAfterLast('/') ?: "backup.json",
                     text = text,
@@ -110,8 +110,9 @@ fun AjustesScreen(
                 TextButton(
                     onClick = {
                         pendingImport = null
+                        importOutcome = null
                         scope.launch {
-                            importResult = importBackup(context, pending.text)
+                            importOutcome = importBackup(context, pending.text)
                         }
                     },
                 ) {
@@ -173,8 +174,19 @@ fun AjustesScreen(
             style = GimText.detalle,
             color = GimTheme.colors.muted,
         )
-        importResult?.let { result ->
-            Text(text = result, style = GimText.detalle, color = GimTheme.colors.ink2)
+        if (readError) {
+            Text(
+                text = stringResource(R.string.datos_import_error_lectura),
+                style = GimText.detalle,
+                color = GimTheme.colors.bad,
+            )
+        }
+        importOutcome?.let { outcome ->
+            Text(
+                text = importMessage(outcome),
+                style = GimText.detalle,
+                color = GimTheme.colors.ink2,
+            )
         }
         SectionHeader(title = stringResource(R.string.ph_seccion_apariencia))
         Row(horizontalArrangement = Arrangement.spacedBy(GimSpacing.s)) {
@@ -191,25 +203,25 @@ private data class PendingImport(val name: String, val text: String)
 private suspend fun importBackup(
     context: android.content.Context,
     text: String,
-): String {
+): WebImportOutcome {
     val app = context.applicationContext as? Application
-        ?: return context.getString(R.string.datos_import_fallo, "sin contenedor")
-    return when (val outcome = GimCheckApp.container(app).webBackup.import(text)) {
-        is WebImportOutcome.Imported -> context.getString(
-            R.string.datos_importado,
-            outcome.routines,
-            outcome.days,
-            outcome.exercises,
-        )
+        ?: return WebImportOutcome.Failed("sin contenedor de la app")
+    return GimCheckApp.container(app).webBackup.import(text)
+}
 
-        is WebImportOutcome.Invalid -> context.getString(
-            R.string.datos_import_invalido,
-            outcome.message,
-        )
+/**
+ * Mensaje del import con `stringResource`: la cadena se resuelve en composición (y no
+ * con `LocalContext.getString`, que Compose marca como no configuration-aware).
+ */
+@Composable
+private fun importMessage(outcome: WebImportOutcome): String = when (outcome) {
+    is WebImportOutcome.Imported -> stringResource(
+        R.string.datos_importado,
+        outcome.routines,
+        outcome.days,
+        outcome.exercises,
+    )
 
-        is WebImportOutcome.Failed -> context.getString(
-            R.string.datos_import_fallo,
-            outcome.message,
-        )
-    }
+    is WebImportOutcome.Invalid -> stringResource(R.string.datos_import_invalido, outcome.message)
+    is WebImportOutcome.Failed -> stringResource(R.string.datos_import_fallo, outcome.message)
 }
