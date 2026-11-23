@@ -91,8 +91,10 @@ fun AjustesScreen(
                     null
                 }
             }
-            readError = text.isNullOrBlank()
-            if (!readError) {
+            if (text.isNullOrBlank()) {
+                readError = true
+            } else {
+                readError = false
                 pendingImport = PendingImport(
                     name = uri.lastPathSegment?.substringAfterLast('/') ?: "backup.json",
                     text = text,
