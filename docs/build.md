@@ -27,7 +27,10 @@ Tres niveles, porque este equipo no puede compilar Android (ver
 | kotlinx-serialization-json | **1.9.0** | catálogo (`kotlinxSerialization`), `:core` (implementation) |
 | kotlinx-datetime | 0.8.0 | `:core` (implementation) |
 | Robolectric | 4.18 | catálogo; `testImplementation` en `:app` desde GIM-9 (tests de Room en JVM) |
-| androidx.test:core | 1.7.0 | catálogo (`androidxTestCore`); `testImplementation` en `:app` (`ApplicationProvider`, `InstrumentationRegistry`) |
+| androidx.test:core | 1.7.0 | catálogo (`androidxTestCore`); `testImplementation` y `androidTestImplementation` en `:app` (`ApplicationProvider`, `InstrumentationRegistry`) |
+| androidx.test:runner / rules | 1.7.0 / 1.7.0 | catálogo (`androidxTestRunner`, `androidxTestRules`); `androidTestImplementation` en `:app` (GIM-44) |
+| androidx.test.ext:junit | 1.3.0 | catálogo (`androidxTestExtJunit`); `androidTestImplementation` en `:app` (`AndroidJUnit4`) |
+| Emulador de CI | API 34, `google_apis`, `x86_64`, `pixel_5` | `.github/workflows/build.yml` job `instrumented` (GIM-44) |
 | JUnit4 | 4.13.2 | `:core` (testImplementation) |
 | JDK de build | **21** (temurin en CI, OpenJDK 21.0.13 en el Moto) | `setup-java` / host |
 | Bytecode / `jvmTarget` | **17** | `compileOptions` en `:app`, `java` + `kotlin.compilerOptions` en `:core` |
@@ -253,13 +256,27 @@ Las guardas se probaron forzando los umbrales, no sólo leyendo el código:
     (`core/build/reports/tests/` y `app/build/reports/tests/`, 7 días). Sólo se
     crea cuando el run falla; es la forma de ver qué test rompió sin bajar el log.
 
+Y un **segundo job** (`instrumented`, GIM-44) que corre en un emulador real:
+
+1. `actions/checkout@v7`, JDK 21, caché de Gradle, `android-actions/setup-android@v4`.
+2. Habilita `/dev/kvm` (el emulador x86_64 necesita aceleración; sin KVM arranca en
+   modo software y el timeout de 40 min no alcanza).
+3. `reactivecircus/android-emulator-runner@v2` — API 34, `google_apis`, `x86_64`,
+   `pixel_5`, sin ventana/audio, `swiftshader_indirect`.
+4. `./gradlew :app:connectedDebugAndroidTest` — tests de `app/src/androidTest/`.
+5. Reportes `app/build/reports/androidTests/` si falla.
+
+El job instrumentado **no es opcional**: es la única verificación de que el overlay
+`TYPE_APPLICATION_OVERLAY` se dibuja encima de otra app y de que la alarma exacta
+despierta el receptor sin UI. Si ese job está rojo, el run está rojo.
+
 ### Tests unitarios de `:app`
 
-`:app:testDebugUnitTest` corre en JVM (sin emulador, sin `connectedAndroidTest`)
-y **es un paso obligatorio del run**: un test rojo en `:app` pone el run en rojo
-y se saltea el resto. Antes de GIM-35 no existía ningún test de `:app`, así que
-todo lo que venga de DATOS/UI (GIM-9, 10, 11, 20, 21, 24, 25…) se habría cerrado
-con evidencia que no se ejecutaba.
+`:app:testDebugUnitTest` corre en JVM (sin emulador; los instrumentados son el job
+`instrumented` aparte) y **es un paso obligatorio del run**: un test rojo en `:app` pone
+el run en rojo y se saltea el resto. Antes de GIM-35 no existía ningún test de `:app`,
+así que todo lo que venga de DATOS/UI (GIM-9, 10, 11, 20, 21, 24, 25…) se habría
+cerrado con evidencia que no se ejecutaba.
 
 | Pieza | Estado hoy |
 |---|---|
@@ -269,12 +286,30 @@ con evidencia que no se ejecutaba.
 | Recursos Android en tests | `testOptions.unitTests.isIncludeAndroidResources = true` (Robolectric carga recursos y assets de la variante) |
 | `BuildConfig` | activado (`buildFeatures.buildConfig = true`) porque el test verifica `BuildConfig.APPLICATION_ID` |
 
+### Tests instrumentados (GIM-44)
+
+`app/src/androidTest/java/app/gimcheck/rest/RestAlertDeviceTest` corre en el **emulador
+API 34 del job `instrumented`**, no en el Moto. Verifica lo que Robolectric no puede:
+
+| Test | Qué prueba |
+|---|---|
+| `canalDeFinDeDescansoConImportanciaAlta` | el canal `rest_done_v2` efectivo queda en `IMPORTANCE_HIGH` (una importancia menor degrada el aviso a heads-up) |
+| `overlayApareceEncimaDeOtraAppConElTelefonoDesbloqueado` | con `SYSTEM_ALERT_WINDOW` concedido por `appops`, Ajustes del sistema en primer plano y el teléfono desbloqueado: `dumpsys window` muestra una ventana `APPLICATION_OVERLAY` de `app.gimcheck` y el diagnóstico registra `overlay` |
+| `laAlarmaExactaDespiertaElReceptorYDejaLaNotificacion` | `scheduleSelfTest` programa la alarma, dispara `RestAlarmReceiver` sin UI y deja la notificación del canal (`dumpsys notification`) |
+
+El permiso de overlay y el de alarmas exactas se conceden con `appops set … allow` desde
+el propio test (`UiAutomation`), que es la misma operación que el usuario hace en
+Ajustes: así la prueba no depende de tocar la pantalla ni del dueño. La prueba de un
+toque de Ajustes (`RestAlertCenter.scheduleSelfTest`) programa el mismo camino a 10 s.
+
+Los tests de `:app` con Robolectric siguen sin emulador: el emulador se usa sólo para
+este job.
+
 ### Tests de Room (GIM-9)
 
 Van en `app/src/test/java/app/gimcheck/data/db/` y corren en `:app:testDebugUnitTest`
-con **Robolectric 4.18**, la misma JVM del runner. **No hay emulador ni
-`connectedAndroidTest`**: no existen en este proyecto y no hay nada que prometer
-ahí.
+con **Robolectric 4.18**, la misma JVM del runner. No usan emulador: los tests
+instrumentados de este repo son sólo los del aviso de descanso (sección anterior).
 
 | Test | Qué fija |
 |---|---|

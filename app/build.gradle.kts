@@ -29,6 +29,10 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+
+        // Tests instrumentados del aviso de fin de descanso (GIM-44): corren en el
+        // emulador de CI, no en este equipo (ver docs/build.md).
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
@@ -105,4 +109,13 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.room.testing)
+
+    // Tests instrumentados: emulador API 34 en CI (`:app:connectedDebugAndroidTest`).
+    // Verifican lo que la JVM no puede: overlay encima de otra app y alarma exacta que
+    // despierta el receptor con el proceso sin UI (GIM-44).
+    androidTestImplementation(libs.junit4)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 }
