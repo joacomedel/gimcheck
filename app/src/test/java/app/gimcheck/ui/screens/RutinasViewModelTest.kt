@@ -146,15 +146,18 @@ class RutinasViewModelTest {
         val initial = loadedState()
         val originalId = requireNotNull(initial.selectedPlanId)
         val original = requireNotNull(routines.routine(originalId))
+        val beforeIds = initial.plans.map { it.id }.toSet()
 
         viewModel.duplicatePlan(originalId)
 
         // Igual que en crear: la copia existe en la lista antes de que el ViewModel la
         // seleccione (dos emisiones). Se espera la que ya la tiene seleccionada.
         val state = withTimeout(5_000) {
-            viewModel.state.first { it.plans.size == 3 && it.selectedPlanId != originalId }
+            viewModel.state.first {
+                it.plans.size == beforeIds.size + 1 && it.selectedPlanId !in beforeIds
+            }
         }
-        val copy = state.plans.first { it.id != originalId }
+        val copy = state.plans.first { it.id !in beforeIds }
         assertEquals(copy.id, state.selectedPlanId)
         assertEquals(original.days.size, copy.daysCount)
 
