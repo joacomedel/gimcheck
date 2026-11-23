@@ -10,6 +10,7 @@ import app.gimcheck.data.repository.SessionRepository
 import app.gimcheck.data.repository.SessionResumer
 import app.gimcheck.data.repository.SettingsRepository
 import app.gimcheck.data.seed.SeedImporter
+import app.gimcheck.data.transfer.WebBackupImporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +51,12 @@ class AppContainer(context: Context) {
      * `GimCheckRoot`.
      */
     val sessionResumer: SessionResumer = SessionResumer(sessions, background)
+
+    /**
+     * Import de un backup de la web desde Ajustes (GIM-45). Reemplaza rutinas y
+     * catálogo en una transacción y conserva el historial; ver [WebBackupImporter].
+     */
+    val webBackup: WebBackupImporter = WebBackupImporter(database, settings)
 
     private val seedImporter: SeedImporter = SeedImporter(database)
 

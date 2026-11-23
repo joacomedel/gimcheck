@@ -47,6 +47,14 @@ internal interface RoutineDao {
     @Query("SELECT COUNT(*) FROM routine")
     suspend fun count(): Int
 
+    /**
+     * Borra **todos** los planes con sus días e ítems (CASCADE). Lo usa el import de un
+     * backup de la web (GIM-45), que reemplaza el catálogo y las rutinas. No toca
+     * `session`: el historial sobrevive con ids huérfanos, igual que al borrar un plan.
+     */
+    @Query("DELETE FROM routine")
+    suspend fun deleteAll()
+
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @Upsert
     suspend fun upsertRoutine(routine: RoutineEntity)

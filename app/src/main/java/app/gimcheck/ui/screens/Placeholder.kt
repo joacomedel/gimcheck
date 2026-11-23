@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -34,6 +36,7 @@ fun PlaceholderScreen(
     hint: String,
     modifier: Modifier = Modifier,
     primary: (@Composable () -> Unit)? = null,
+    scrollable: Boolean = false,
     content: @Composable ColumnScope.() -> Unit = {},
 ) {
     val colors = GimTheme.colors
@@ -48,7 +51,10 @@ fun PlaceholderScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(top = GimSpacing.l),
+                .padding(top = GimSpacing.l)
+                .then(
+                    if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier,
+                ),
             verticalArrangement = Arrangement.spacedBy(GimSpacing.l),
         ) {
             content()

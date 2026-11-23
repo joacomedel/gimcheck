@@ -45,6 +45,14 @@ internal interface MuscleDao {
     @Query("SELECT COUNT(*) FROM muscle WHERE archived = 0")
     suspend fun countActive(): Int
 
+    /**
+     * Borra todo el catálogo de músculos. Sólo se usa después de borrar los ejercicios
+     * (la FK `exercise.primary_muscle_id` es RESTRICT) y en la misma transacción
+     * (GIM-45).
+     */
+    @Query("DELETE FROM muscle")
+    suspend fun deleteAll()
+
     @Upsert
     suspend fun upsert(muscle: MuscleEntity)
 
@@ -65,6 +73,14 @@ internal interface ExerciseDao {
 
     @Query("SELECT * FROM exercise WHERE archived = 0 ORDER BY position, name")
     suspend fun all(): List<ExerciseEntity>
+
+    /**
+     * Borra todo el catálogo de ejercicios (con sus secundarios por CASCADE). Sólo para
+     * el import que reemplaza datos (GIM-45); el historial (`session_set.exercise_id`)
+     * no es FK y se conserva.
+     */
+    @Query("DELETE FROM exercise")
+    suspend fun deleteAll()
 
     @Query("SELECT * FROM exercise WHERE id = :id")
     suspend fun getById(id: String): ExerciseEntity?

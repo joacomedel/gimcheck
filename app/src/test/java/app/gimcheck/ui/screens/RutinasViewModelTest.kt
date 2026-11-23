@@ -84,13 +84,19 @@ class RutinasViewModelTest {
     fun `con el seed el plan activo tiene los totales de dayStats y el detalle del primer dia`() =
         runBlocking {
             val state = loadedState()
-            val routine = routines.observeRoutines().first().single()
+            val all = routines.observeRoutines().first()
+            val routine = all.first { it.id == state.selectedPlanId }
             val core = AppSettings.CORE_DEFAULT
 
             assertTrue(state.hasPlans)
-            assertEquals(1, state.plans.size)
-            val plan = state.plans.single()
+            assertEquals("el seed trae las dos rutinas del dueño", 2, state.plans.size)
+            val plan = state.plans.single { it.active }
             assertTrue("el plan del seed es el activo", plan.active)
+            assertEquals("Rutina A (original)", plan.name)
+            assertTrue(
+                "la segunda rutina del backup también está",
+                state.plans.any { it.name == "Rutina B (más multiarticulares)" },
+            )
             assertEquals(routine.days.size, plan.daysCount)
             assertEquals(
                 routine.days.sumOf { dayStats(it.items, core).sets }.toString(),
@@ -100,7 +106,7 @@ class RutinasViewModelTest {
                 formatDuration(routine.days.sumOf { dayStats(it.items, core).totalSeconds }),
                 plan.durationLabel,
             )
-            assertFalse("con un solo plan el borrado no está disponible", state.canDeletePlan)
+            assertTrue("con dos planes el borrado está disponible", state.canDeletePlan)
 
             val day = requireNotNull(state.day)
             val firstDay = routine.days.first { it.id == day.id }
@@ -119,10 +125,10 @@ class RutinasViewModelTest {
         viewModel.createPlan()
 
         // El plan y el puntero del activo son dos escrituras: hay una emisión intermedia
-        // con los dos planes y el activo todavía apuntando al viejo. Se espera la que ya
-        // tiene las dos cosas, que es el estado que ve el usuario.
+        // con los planes y el activo todavía apuntando al viejo. Se espera la que ya
+        // tiene las tres cosas (seed A + seed B + el nuevo), que es la que ve el usuario.
         val state = withTimeout(5_000) {
-            viewModel.state.first { it.plans.size == 2 && it.plans.any { plan -> plan.active && plan.daysCount == 0 } }
+            viewModel.state.first { it.plans.size == 3 && it.plans.any { plan -> plan.active && plan.daysCount == 0 } }
         }
         val created = state.plans.first { it.daysCount == 0 }
         assertTrue("el plan nuevo queda activo", created.active)
@@ -146,7 +152,7 @@ class RutinasViewModelTest {
         // Igual que en crear: la copia existe en la lista antes de que el ViewModel la
         // seleccione (dos emisiones). Se espera la que ya la tiene seleccionada.
         val state = withTimeout(5_000) {
-            viewModel.state.first { it.plans.size == 2 && it.selectedPlanId != originalId }
+            viewModel.state.first { it.plans.size == 3 && it.selectedPlanId != originalId }
         }
         val copy = state.plans.first { it.id != originalId }
         assertEquals(copy.id, state.selectedPlanId)
@@ -181,14 +187,19 @@ class RutinasViewModelTest {
     @Test
     fun `eliminar el ultimo plan no esta disponible`() = runBlocking {
         val state = loadedState()
-        val planId = requireNotNull(state.selectedPlanId)
+        assertEquals(2, state.plans.size)
+        val activeId = requireNotNull(state.selectedPlanId)
+        val otherId = state.plans.first { it.id != activeId }.id
 
+        // Primero se borra el que no está activo: con dos planes todavía se puede.
+        assertTrue(routines.deleteRoutine(otherId))
         assertFalse(
-            "el repositorio rechaza borrar el único plan",
-            routines.deleteRoutine(planId),
+            "el repositorio rechaza borrar el único plan que queda",
+            routines.deleteRoutine(activeId),
         )
         assertEquals(1, routines.observeRoutines().first().size)
-        assertFalse(viewModel.state.value.canDeletePlan)
+        val last = withTimeout(5_000) { viewModel.state.first { it.plans.size == 1 } }
+        assertFalse(last.canDeletePlan)
     }
 
     @Test

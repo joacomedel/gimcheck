@@ -116,7 +116,8 @@ class HoyViewModelTest {
         assertEquals("Buenos días", state.greeting)
         assertEquals("miércoles 18 de noviembre", state.dateLabel)
 
-        val routine = routines.observeRoutines().first().single()
+        val all = routines.observeRoutines().first()
+        val routine = all.first { candidate -> candidate.days.any { it.id == state.selectedDayId } }
         val day = requireNotNull(routine.days.firstOrNull { it.id == state.selectedDayId })
         val stats = dayStats(day.items, AppSettings.CORE_DEFAULT)
 

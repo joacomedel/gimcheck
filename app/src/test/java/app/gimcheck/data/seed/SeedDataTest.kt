@@ -27,13 +27,15 @@ import org.robolectric.RobolectricTestRunner
 /**
  * El seed de `assets/seed.json`, de punta a punta.
  *
- * Los números esperados son los de `docs/paridad-web.md` (Rutina A del HTML con los
- * ajustes por defecto): **15.100 s** y **106 series** por semana, y el volumen por
- * músculo que publica la web (Pecho 16 directas, 1,75 indirectas, 3 días).
+ * El seed es el backup real del dueño (v21): **Rutina A y Rutina B**, 6 días cada una,
+ * 32 ejercicios y 15 músculos (GIM-45). Los números esperados de la Rutina A son los de
+ * `docs/paridad-web.md` (ajustes por defecto): **15.100 s** y **106 series** por semana,
+ * y el volumen por músculo que publica la web (Pecho 16 directas, 1,75 indirectas, 3
+ * días).
  *
- * El seed no se escribe a mano: lo genera `scripts/gen-seed.py` desde el mismo estado
- * de la web que validan los tests de `:core`, y la app lo importa con `importWeb`. Si
- * alguien edita el JSON a mano o cambia un default, estos asserts fallan.
+ * El seed no se escribe a mano: `scripts/gen-seed.py` copia el backup tal cual y la app
+ * lo importa con `importWeb`. Si alguien edita el JSON o cambia un default, estos asserts
+ * fallan.
  */
 @RunWith(RobolectricTestRunner::class)
 class SeedDataTest {
@@ -61,16 +63,22 @@ class SeedDataTest {
     private val routineA: Routine
         get() = requireNotNull(snapshot.activeRoutine()) { "el seed no tiene rutina activa" }
 
+    private val routineB: Routine
+        get() = snapshot.routines.first { it.id != routineA.id }
+
     @Test
-    fun `el seed tiene 6 dias y 32 ejercicios`() {
-        assertEquals(1, snapshot.routines.size)
+    fun `el seed trae las dos rutinas del dueno, 12 dias y 32 ejercicios`() {
+        assertEquals(2, snapshot.routines.size)
         assertEquals("Rutina A (original)", routineA.name)
+        assertEquals("Rutina B (más multiarticulares)", routineB.name)
         assertEquals(
             listOf("Día 1", "Día 2", "Día 3", "Día 4", "Día 5", "Día 6"),
             routineA.days.map { it.name },
         )
         assertEquals(6, routineA.days.size)
+        assertEquals(6, routineB.days.size)
         assertEquals(39, routineA.days.sumOf { it.items.size })
+        assertEquals(12, snapshot.routines.sumOf { it.days.size })
         assertEquals(32, snapshot.exercises.size)
         assertEquals(15, snapshot.muscles.size)
     }
@@ -112,26 +120,28 @@ class SeedDataTest {
             val importer = SeedImporter(db)
 
             assertTrue("la primera carga tiene que escribir", importer.seedIfEmpty(seedJson))
-            assertEquals(1, db.routineDao().count())
+            assertEquals(2, db.routineDao().count())
             assertEquals(15, db.muscleDao().all().size)
             assertEquals(32, db.exerciseDao().all().size)
             assertEquals(6, db.routineDao().daysOf(routineA.id).size)
+            assertEquals(6, db.routineDao().daysOf(routineB.id).size)
 
             // Segundo arranque: no pisa nada (idempotente).
             assertFalse(importer.seedIfEmpty(seedJson))
-            assertEquals(1, db.routineDao().count())
+            assertEquals(2, db.routineDao().count())
             assertEquals(32, db.exerciseDao().all().size)
 
             // Lo que la app va a calcular sale de Room, no del JSON: si el mapeo
             // entidad ↔ dominio pierde una serie o un descanso, acá se ve.
-            val loaded = RoutineRepository(db).observeRoutines().first().single()
-            assertEquals(routineA.id, loaded.id)
-            val stats = loaded.days.map { dayStats(it.items, snapshot.settings) }
+            val loaded = RoutineRepository(db).observeRoutines().first()
+            assertEquals(2, loaded.size)
+            val loadedA = loaded.first { it.id == routineA.id }
+            val stats = loadedA.days.map { dayStats(it.items, snapshot.settings) }
             assertEquals(15100, stats.sumOf { it.totalSeconds })
             assertEquals(106, stats.sumOf { it.sets })
             assertEquals(
                 routineA.days.map { day -> day.items.map { it.id to it.sets } },
-                loaded.days.map { day -> day.items.map { it.id to it.sets } },
+                loadedA.days.map { day -> day.items.map { it.id to it.sets } },
             )
         }
     }

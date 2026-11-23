@@ -85,6 +85,7 @@
     <string name="ph_series_por_musculo">Series por músculo</string>
     <string name="ph_seccion_entrenamiento">Entrenamiento</string>
     <string name="ph_seccion_alertas">Alertas</string>
+    <string name="ph_seccion_datos">Datos</string>
     <string name="ph_seccion_apariencia">Apariencia</string>
     <string name="ph_descanso_series">Descanso entre series (s)</string>
     <string name="ph_tema_sistema">Sistema</string>
@@ -282,4 +283,19 @@
     <string name="rest_diag_importancia_low">baja</string>
     <string name="rest_diag_importancia_default">normal</string>
     <string name="rest_diag_importancia_high">alta</string>
+
+    <!--
+      Datos: importar el backup de la web (GIM-45). Reemplaza rutinas y catálogo; el
+      historial de sesiones no se toca.
+    -->
+    <string name="datos_importar_boton">Importar backup de la web</string>
+    <string name="datos_importar_nota">Elegí el JSON que exportaste de la web. Trae tus rutinas, días y ejercicios ya armados; los entrenamientos guardados se conservan.</string>
+    <string name="datos_importar_titulo">Importar rutinas</string>
+    <string name="datos_importar_texto">Se van a reemplazar tus rutinas y ejercicios por los de “%1$s”. Los entrenamientos ya guardados no se tocan. ¿Seguir?</string>
+    <string name="datos_importar_confirmar">Importar</string>
+    <string name="datos_cancelar">Cancelar</string>
+    <string name="datos_importado">Listo: %1$d rutinas, %2$d días y %3$d ejercicios.</string>
+    <string name="datos_import_invalido">El archivo no es un backup válido: %1$s</string>
+    <string name="datos_import_fallo">No se pudo importar: %1$s</string>
+    <string name="datos_import_error_lectura">No se pudo leer el archivo elegido.</string>
 </resources>

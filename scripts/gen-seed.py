@@ -1,30 +1,20 @@
 #!/usr/bin/env python3
-"""Genera `app/src/main/assets/seed.json` desde el estado por defecto del HTML.
+"""Copia el backup real del dueño a `app/src/main/assets/seed.json`.
 
-Por qué existe: el seed de la app **no se escribe a mano**. Sale del mismo estado de
-`Rutinas de Gimnasio.html` que ya validan los tests de `:core` (`web_v21.json`, que
-produce `core/src/test/resources/web/gen_fixture_web.py` leyendo los literales
-`seed()`, `ensureV2()` y `planBDays()` del HTML). Así el dato que la app carga al
-arrancar es exactamente el que se comparó contra la web, no una copia nueva que se
-puede desincronizar.
+Por qué cambió (GIM-45): el dueño pidió que sus **dos** rutinas vinieran
+precargadas. Antes este script recortaba el estado por defecto del HTML a la
+Rutina A; ahora el seed es el backup que exportó de su navegador el 2026-11-18
+(`owner_backup_v21.json`, formato `localStorage["rutinas-gym-v1"]`, v21):
+Rutina A + Rutina B, 6 días cada una, 32 ejercicios y 15 músculos.
 
-Qué recorta respecto del estado completo:
-
-  - **sólo la Rutina A** (6 días, `Día 1..6`), que es la que miden los números de
-    `docs/paridad-web.md` (15.100 s y 106 series por semana). La Rutina B existe en el
-    HTML pero no entra en el seed de v1: son dos planes de ejemplo y el producto
-    arranca con el original.
-  - el catálogo completo queda como está: **15 músculos y 32 ejercicios** (los 25 de
-    `seed()` más los 7 que agrega `ensureV2()`), porque la Rutina A no usa todos.
-
-El formato de salida es el JSON de `localStorage["rutinas-gym-v1"]` (v = 21), el mismo
-que importa `importWeb` de `:core`. La app no tiene un formato de seed propio: usa el
-importador que ya está probado contra la web.
+El archivo es evidencia, no un fixture generado: se copia **tal cual** y el
+importador que lo carga es `importWeb` de `:core`, el mismo que valida
+`OwnerBackupTest`. El script sólo comprueba la forma antes de copiarlo.
 
 Uso:
 
-    python3 scripts/gen-seed.py                 # regenera el fixture y el seed
-    python3 scripts/gen-seed.py --no-regenerate # sólo rearma el seed desde web_v21.json
+    python3 scripts/gen-seed.py                 # regenera los fixtures web y copia el seed
+    python3 scripts/gen-seed.py --no-regenerate # sólo copia el seed
 """
 
 import json
@@ -34,69 +24,73 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_GENERATOR = ROOT / "core/src/test/resources/web/gen_fixture_web.py"
-WEB_STATE = ROOT / "core/src/test/resources/web/web_v21.json"
+OWNER_BACKUP = ROOT / "core/src/test/resources/web/owner_backup_v21.json"
 OUT = ROOT / "app/src/main/assets/seed.json"
 
-PLAN_A = "Rutina A (original)"
-
-# Lo que verifican los tests de la app y `docs/paridad-web.md`.
-EXPECTED_DAYS = 6
+EXPECTED_VERSION = 21
+EXPECTED_PLANS = 2
+EXPECTED_DAYS_PER_PLAN = 6
 EXPECTED_EXERCISES = 32
 EXPECTED_MUSCLES = 15
 
 
-def main():
+def main() -> None:
     if "--no-regenerate" not in sys.argv:
         print("regenerando", FIXTURE_GENERATOR.relative_to(ROOT), "desde el HTML…")
         subprocess.run([sys.executable, str(FIXTURE_GENERATOR)], check=True, cwd=ROOT)
 
-    state = json.loads(WEB_STATE.read_text(encoding="utf-8"))
+    text = OWNER_BACKUP.read_text(encoding="utf-8")
+    state = json.loads(text)
 
-    plan_a = [plan for plan in state["plans"] if plan["name"] == PLAN_A]
-    if len(plan_a) != 1:
-        raise SystemExit(
-            "se esperaba exactamente un plan %r en %s, hay %d"
-            % (PLAN_A, WEB_STATE.relative_to(ROOT), len(plan_a))
-        )
-    plan_a = plan_a[0]
+    if state.get("v") != EXPECTED_VERSION:
+        raise SystemExit("el backup tiene v=%r, se esperaba %d" % (state.get("v"), EXPECTED_VERSION))
 
-    seed = {
-        "v": state["v"],
-        "settings": state["settings"],
-        "muscles": state["muscles"],
-        "exercises": state["exercises"],
-        "includeIndirect": state["includeIndirect"],
-        "plans": [plan_a],
-        "curPlan": plan_a["id"],
-    }
+    plans = state.get("plans") or []
+    if len(plans) != EXPECTED_PLANS:
+        raise SystemExit("el backup tiene %d planes, se esperaban %d" % (len(plans), EXPECTED_PLANS))
+    for plan in plans:
+        days = plan.get("days") or []
+        if len(days) != EXPECTED_DAYS_PER_PLAN:
+            raise SystemExit(
+                "el plan %r tiene %d días, se esperaban %d"
+                % (plan.get("name"), len(days), EXPECTED_DAYS_PER_PLAN)
+            )
 
-    days = plan_a["days"]
-    if len(days) != EXPECTED_DAYS:
-        raise SystemExit("la Rutina A tiene %d días, se esperaban %d" % (len(days), EXPECTED_DAYS))
-    if len(seed["exercises"]) != EXPECTED_EXERCISES:
-        raise SystemExit(
-            "el catálogo tiene %d ejercicios, se esperaban %d"
-            % (len(seed["exercises"]), EXPECTED_EXERCISES)
-        )
-    if len(seed["muscles"]) != EXPECTED_MUSCLES:
-        raise SystemExit(
-            "el catálogo tiene %d músculos, se esperaban %d"
-            % (len(seed["muscles"]), EXPECTED_MUSCLES)
-        )
-    used = {item["ex"] for day in days for item in day["items"]}
-    unknown = used - {exercise["id"] for exercise in seed["exercises"]}
-    if unknown:
-        raise SystemExit("la Rutina A usa ejercicios que no están en el catálogo: %s" % sorted(unknown))
+    exercises = state.get("exercises") or []
+    muscles = state.get("muscles") or []
+    if len(exercises) != EXPECTED_EXERCISES:
+        raise SystemExit("el catálogo tiene %d ejercicios, se esperaban %d" % (len(exercises), EXPECTED_EXERCISES))
+    if len(muscles) != EXPECTED_MUSCLES:
+        raise SystemExit("el catálogo tiene %d músculos, se esperaban %d" % (len(muscles), EXPECTED_MUSCLES))
+
+    known = {exercise["id"] for exercise in exercises}
+    for plan in plans:
+        used = {item["ex"] for day in plan["days"] for item in day["items"]}
+        unknown = used - known
+        if unknown:
+            raise SystemExit(
+                "el plan %r usa ejercicios que no están en el catálogo: %s"
+                % (plan["name"], sorted(unknown))
+            )
+    if state.get("curPlan") not in {plan["id"] for plan in plans}:
+        raise SystemExit("curPlan=%r no está entre los planes" % state.get("curPlan"))
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(seed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    OUT.write_text(text, encoding="utf-8")
 
-    sets = sum(item["sets"] for day in days for item in day["items"])
+    sets = sum(item["sets"] for plan in plans for day in plan["days"] for item in day["items"])
     print(
-        "%-40s %d días · %d ejercicios · %d músculos · %d series"
-        % (OUT.relative_to(ROOT), len(days), len(seed["exercises"]), len(seed["muscles"]), sets)
+        "%-40s %d planes · %d días · %d ejercicios · %d músculos · %d series"
+        % (
+            OUT.relative_to(ROOT),
+            len(plans),
+            sum(len(plan["days"]) for plan in plans),
+            len(exercises),
+            len(muscles),
+            sets,
+        )
     )
-    print("v=%s · plan %r · %d ítems" % (seed["v"], plan_a["name"], sum(len(d["items"]) for d in days)))
+    print("v=%s · activo %r" % (state.get("v"), next(p["name"] for p in plans if p["id"] == state["curPlan"])))
 
 
 if __name__ == "__main__":
