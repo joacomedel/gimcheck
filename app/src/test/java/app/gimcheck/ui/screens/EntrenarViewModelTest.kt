@@ -165,18 +165,21 @@ class EntrenarViewModelTest {
     fun `anotar una serie la guarda y se queda en el mismo ejercicio`() = runBlocking {
         startViewModel()
         awaitState { it.phase == EntrenarPhase.ACTIVE }
+        // Remo no es superserie: anotar tiene que quedarse ahí y abrir descanso.
+        viewModel.pickExercise("e3")
+        awaitState { it.exerciseName == "Remo" }
 
         log(weight = 62.5, reps = 8.0)
 
         val state = awaitState { it.setsDone == 1 }
-        assertEquals("Press plano", state.exerciseName)
+        assertEquals("Remo", state.exerciseName)
         assertNull("un ejercicio suelto no salta", state.jumpTo)
         assertNotNull("el descanso del ejercicio arranca al anotar", state.rest)
-        assertEquals(90, state.rest?.totalSeconds)
+        assertEquals(120, state.rest?.totalSeconds)
 
         val stored = requireNotNull(sessions.observeActive().first())
         val set = stored.sets.single()
-        assertEquals("e1", set.exerciseId)
+        assertEquals("e3", set.exerciseId)
         assertEquals(62.5, set.weightKg, 1e-9)
         assertEquals(8, set.reps)
     }
@@ -277,12 +280,14 @@ class EntrenarViewModelTest {
     fun `saltar y extender el descanso se reflejan en la pantalla`() = runBlocking {
         startViewModel()
         awaitState { it.phase == EntrenarPhase.ACTIVE }
+        viewModel.pickExercise("e3")
+        awaitState { it.exerciseName == "Remo" }
         log()
         awaitState { it.rest != null }
 
         viewModel.extendRestNow(15)
-        val extended = awaitState { it.rest?.totalSeconds == 105 }
-        assertEquals(105, requireNotNull(extended.rest).remainingSeconds)
+        val extended = awaitState { it.rest?.totalSeconds == 135 }
+        assertEquals(135, requireNotNull(extended.rest).remainingSeconds)
 
         viewModel.skipRestNow()
         val skipped = awaitState { it.rest == null }
@@ -293,6 +298,8 @@ class EntrenarViewModelTest {
     fun `el descanso se retoma al reabrir el entrenamiento`() = runBlocking {
         startViewModel()
         awaitState { it.phase == EntrenarPhase.ACTIVE }
+        viewModel.pickExercise("e3")
+        awaitState { it.exerciseName == "Remo" }
         log()
         awaitState { it.rest != null }
         viewModel.stop()
@@ -301,8 +308,8 @@ class EntrenarViewModelTest {
         advance(30)
         startViewModel()
         val reopened = awaitState { it.phase == EntrenarPhase.ACTIVE && it.rest != null }
-        assertEquals(60, reopened.rest?.remainingSeconds)
-        assertEquals(90, reopened.rest?.totalSeconds)
+        assertEquals(90, reopened.rest?.remainingSeconds)
+        assertEquals(120, reopened.rest?.totalSeconds)
     }
 
     @Test
@@ -332,6 +339,8 @@ class EntrenarViewModelTest {
     fun `corregir una serie no cambia el ejercicio actual`() = runBlocking {
         startViewModel()
         awaitState { it.phase == EntrenarPhase.ACTIVE }
+        viewModel.pickExercise("e3")
+        awaitState { it.exerciseName == "Remo" }
         log(weight = 60.0)
         val logged = awaitState { it.setsDone == 1 }
         val setId = requireNotNull(logged.sets.firstOrNull()?.sets?.firstOrNull()).id
@@ -344,7 +353,7 @@ class EntrenarViewModelTest {
         val after = awaitState { state ->
             state.sets.any { group -> group.sets.any { it.weightLabel == "82,5 kg" } }
         }
-        assertEquals("Press plano", after.exerciseName)
+        assertEquals("Remo", after.exerciseName)
         assertNull(after.editingSetId)
     }
 
@@ -361,8 +370,7 @@ class EntrenarViewModelTest {
         val finished = awaitState { it.phase == EntrenarPhase.FINISHED }
         assertEquals(1, finished.finishedSets)
         assertNotNull("el resumen se calcula con :core", finished.summary)
-        val stored = requireNotNull(sessions.observeActiveOrNull())
-        assertNull("al terminar ya no hay sesión abierta", stored)
+        assertNull("al terminar ya no hay sesión abierta", sessions.observeActive().first())
         val closed = requireNotNull(sessions.session(finished.sessionId))
         assertEquals(RowStatus.FINISHED, db.sessionDao().getById(closed.id)?.status)
         assertNotNull(closed.endedAt)
@@ -392,8 +400,6 @@ class EntrenarViewModelTest {
         assertEquals("0:00", formatRestClock(-3))
         assertEquals("10:00", formatRestClock(600))
     }
-
-    private suspend fun SessionRepository.observeActiveOrNull() = observeActive().first()
 
     private companion object {
         const val ROUTINE_ID = "routine-test"
