@@ -49,6 +49,7 @@
     <string name="accion_cancelar">Cancelar</string>
     <string name="accion_bajar">Bajar</string>
     <string name="accion_subir">Subir</string>
+    <string name="accion_editar_valor">Escribir valor</string>
 
     <!--
       Copy de los placeholders de GIM-13 (navegación). Es texto real, no "lorem": dice
@@ -72,7 +73,7 @@
     <string name="ph_peso_corporal">Peso corporal (kg)</string>
     <string name="ph_peso_serie">Peso (kg)</string>
     <string name="ph_reps">Reps</string>
-    <string name="ph_confirmar_salida">¿Salir? La sesión sigue abierta.</string>
+    <string name="ph_confirmar_salida">¿Salir? El entrenamiento sigue abierto.</string>
     <string name="ph_plan_full_body">Full body</string>
     <string name="ph_plan_torso_pierna">Torso / pierna</string>
     <string name="ph_dia_a">Día A</string>
@@ -120,7 +121,18 @@
     <string name="entrenar_superserie">Superserie %1$d/%2$d</string>
     <string name="entrenar_ronda">Ronda %1$d de %2$d</string>
     <string name="entrenar_progreso">%1$d/%2$d series</string>
+    <string name="entrenar_series_hechas">%1$d series</string>
     <string name="entrenar_seguir_con">Seguí con %1$s</string>
+    <string name="entrenar_superserie_sigue">Superserie: después de esta serie seguí con %1$s</string>
+    <string name="entrenar_cambiar_ejercicio">Cambiar ejercicio</string>
+    <string name="entrenar_elegir_ejercicio">Elegí un ejercicio</string>
+    <string name="entrenar_libre">Entrenamiento libre</string>
+    <string name="entrenar_tu_rutina">Tu rutina activa</string>
+    <string name="entrenar_todas_rutinas">Todas las rutinas</string>
+    <string name="entrenar_ver_todas">+ Ver todas las rutinas</string>
+    <string name="entrenar_volver_rutina">Volver a mi rutina</string>
+    <string name="entrenar_terminar">Terminar entrenamiento</string>
+    <string name="entrenar_descartar">Descartar entrenamiento</string>
     <string name="entrenar_descanso_terminado">Descanso terminado</string>
     <string name="entrenar_restar_15">−15 s</string>
     <string name="entrenar_sumar_15">+15 s</string>
@@ -144,7 +156,7 @@
     <string name="entrenar_fin_guardado">Se guardó en Historial.</string>
     <string name="accion_listo">Listo</string>
     <string name="accion_abandonar">Abandonar sesión</string>
-    <string name="ph_confirmar_abandono">¿Abandonar la sesión? Se guardan las series, pero no cuenta como entrenamiento.</string>
+    <string name="ph_confirmar_abandono">¿Descartar el entrenamiento? Se guardan las series, pero no cuenta como entrenamiento.</string>
 
     <!--
       Rutinas (§6 fila 4, GIM-16): planes, días y detalle del día. Sentence case y
