@@ -3,13 +3,11 @@ package app.gimcheck.ui.screens
 import app.gimcheck.core.DayItem
 import app.gimcheck.core.E1rmFormula
 import app.gimcheck.core.Exercise
-import app.gimcheck.core.GuidedSession
 import app.gimcheck.core.Muscle
 import app.gimcheck.core.Routine
 import app.gimcheck.core.RoutineDay
 import app.gimcheck.core.Session
 import app.gimcheck.core.SessionSet
-import app.gimcheck.core.StartSession
 import app.gimcheck.core.e1rm
 import app.gimcheck.core.formatDuration
 import app.gimcheck.core.formatNumber
@@ -25,6 +23,10 @@ import app.gimcheck.data.repository.SessionRepository
 import app.gimcheck.data.repository.SessionResumer
 import app.gimcheck.data.repository.SettingsRepository
 import app.gimcheck.data.settings.AppSettings
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,22 +44,18 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import java.time.Duration
-import java.time.Instant
-import java.time.ZoneId
-import java.time.ZoneOffset
 
 /**
- * **Fin de sesión** (GIM-24) contra una base real (Robolectric) y reloj falso.
+ * **Fin de entrenamiento** (GIM-24, modelo libre de GIM-49) contra una base real
+ * (Robolectric) y reloj falso.
  *
- * Los criterios del ticket que se pueden verificar en la JVM:
+ * Criterios verificables en la JVM:
  * 1. los números del resumen (duración, volumen, series) son **los que devuelve `:core`**
- *    sobre las series guardadas, no una segunda fórmula en la UI;
+ *    sobre las series guardadas;
  * 2. una serie que supera el máximo previo marca PR y una que **empata** no;
- * 3. abandonar desde Entrenar deja la sesión `ABANDONED` con sus series y **sin** resumen;
- * 4. una sesión terminada aparece en "Últimos" de Hoy y una abandonada no.
- *
- * La pantalla no se renderiza en este equipo (`docs/build.md`): lo de abajo es estado.
+ * 3. descartar deja la sesión `ABANDONED` con sus series y **sin** resumen;
+ * 4. el entrenamiento terminado aparece en "Últimos" de Hoy;
+ * 5. un segundo "terminar" no reescribe la sesión.
  */
 @RunWith(RobolectricTestRunner::class)
 class EntrenarSummaryTest {
@@ -87,6 +85,7 @@ class EntrenarSummaryTest {
         settings = SettingsRepository(db)
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         savePlan()
+        settings.setActiveRoutine(ROUTINE_ID)
     }
 
     @After
@@ -100,37 +99,38 @@ class EntrenarSummaryTest {
 
     @Test
     fun `el resumen del dia coincide con los calculos de core`() = runBlocking {
-        startGuidedSession()
-        playSession(press = 100.0, row = 105.0)
+        startTraining()
+        play(press = 100.0, row = 105.0)
+        viewModel.finishNow()
 
         val state = awaitState { it.summary != null }
         val summary = requireNotNull(state.summary)
-        val stored = requireNotNull(sessions.session(SESSION_ID))
+        val stored = requireNotNull(sessions.session(state.sessionId))
         val catalog = exercises.all()
         val core = AppSettings.CORE_DEFAULT
 
-        assertEquals("Día A", summary.dayName)
-        assertEquals("4", summary.setsLabel)
+        assertEquals("Plan A", summary.dayName)
+        assertEquals("2", summary.setsLabel)
         assertEquals(stored.sets.count { !it.isWarmup }.toString(), summary.setsLabel)
         assertEquals(
             formatNumber(sessionVolume(stored, catalog, core)) + " kg",
             summary.volumeLabel,
         )
         assertEquals(
-            "dos series de 5 reps por ejercicio: (500 + 525) × 2",
-            2050.0,
+            "una serie de 5 reps por ejercicio: (500 + 525)",
+            1025.0,
             sessionVolume(stored, catalog, core),
             1e-9,
         )
 
-        // Duración real: started_at (10:00) → ended_at (10:03).
+        // Duración real: started_at (10:00) → ended_at (10:02).
         val ended = requireNotNull(stored.endedAt) { "la sesión tiene que quedar cerrada" }
         val seconds = Duration.between(
             stored.startedAt.toJavaLocalDateTime(),
             ended.toJavaLocalDateTime(),
         ).seconds
         assertEquals(formatDuration(seconds), summary.durationLabel)
-        assertEquals("3 min", summary.durationLabel)
+        assertEquals("2 min", summary.durationLabel)
 
         // Sin histórico previo, la primera serie de cada ejercicio es PR (:core).
         assertEquals(2, summary.prs.size)
@@ -138,7 +138,7 @@ class EntrenarSummaryTest {
 
         // Top de músculos: las mismas series efectivas que `sessionVolumeByMuscle`.
         assertEquals(listOf("Pecho", "Espalda"), summary.muscles.map { it.name })
-        assertEquals(listOf("2", "2"), summary.muscles.map { it.setsLabel })
+        assertEquals(listOf("1", "1"), summary.muscles.map { it.setsLabel })
         assertTrue(summary.muscles.all { it.fraction == 1f })
     }
 
@@ -147,8 +147,9 @@ class EntrenarSummaryTest {
     @Test
     fun `una serie que rompe el maximo previo marca PR y un empate no`() = runBlocking {
         priorSession()
-        startGuidedSession()
-        playSession(press = 100.0, row = 110.0)
+        startTraining()
+        play(press = 100.0, row = 110.0)
+        viewModel.finishNow()
 
         val summary = requireNotNull(awaitState { it.summary != null }.summary)
 
@@ -165,37 +166,38 @@ class EntrenarSummaryTest {
         )
     }
 
-    // --- 3. abandonar ----------------------------------------------------------------
+    // --- 3. descartar ----------------------------------------------------------------
 
     @Test
-    fun `abandonar deja la sesion ABANDONED con sus series y sin resumen`() = runBlocking {
-        startGuidedSession()
+    fun `descartar deja la sesion ABANDONED con sus series y sin resumen`() = runBlocking {
+        startTraining()
         awaitState { it.phase == EntrenarPhase.ACTIVE }
         log(100.0)
+        awaitState { it.setsDone == 1 }
+        val sessionId = viewModel.state.value.sessionId
 
         viewModel.abandonNow()
 
         assertEquals(EntrenarPhase.NO_SESSION, viewModel.state.value.phase)
         assertNull("una abandonada no tiene resumen de PRs", viewModel.state.value.summary)
+        assertEquals(RowStatus.ABANDONED, requireNotNull(db.sessionDao().getById(sessionId)).status)
         assertEquals(
-            RowStatus.ABANDONED,
-            requireNotNull(db.sessionDao().getById(SESSION_ID)).status,
-        )
-        assertEquals(
-            "abandonar no borra las series",
+            "descartar no borra las series",
             1,
-            db.sessionSetDao().ofSession(SESSION_ID).size,
+            db.sessionSetDao().ofSession(sessionId).size,
         )
         assertTrue("no es un entrenamiento", sessions.finishedHistory().isEmpty())
     }
 
-    // --- 4. Hoy muestra la sesión terminada -------------------------------------------
+    // --- 4. Hoy muestra el entrenamiento terminado ------------------------------------
 
     @Test
-    fun `la sesion terminada aparece en los ultimos entrenamientos de Hoy`() = runBlocking {
-        startGuidedSession()
-        playSession(press = 100.0, row = 105.0)
+    fun `el entrenamiento terminado aparece en los ultimos entrenamientos de Hoy`() = runBlocking {
+        startTraining()
+        play(press = 100.0, row = 105.0)
+        viewModel.finishNow()
         awaitState { it.summary != null }
+        val sessionId = viewModel.state.value.sessionId
 
         val hoy = HoyViewModel(
             routines = routines,
@@ -214,8 +216,8 @@ class EntrenarSummaryTest {
                 hoy.state.first { !it.loading && it.recent.isNotEmpty() }
             }
             assertEquals(1, state.recent.size)
-            assertEquals(4, state.recent.single().setCount)
-            val stored = requireNotNull(sessions.session(SESSION_ID))
+            assertEquals(2, state.recent.single().setCount)
+            val stored = requireNotNull(sessions.session(sessionId))
             assertEquals(
                 formatNumber(sessionVolume(stored, exercises.all(), AppSettings.CORE_DEFAULT)) + " kg",
                 state.recent.single().volumeLabel,
@@ -226,19 +228,22 @@ class EntrenarSummaryTest {
     }
 
     @Test
-    fun `una segunda finalizacion no reescribe la sesion`() = runBlocking {
-        startGuidedSession()
-        playSession(press = 100.0, row = 105.0)
+    fun `un segundo terminar no reescribe la sesion`() = runBlocking {
+        startTraining()
+        play(press = 100.0, row = 105.0)
+        viewModel.finishNow()
         awaitState { it.summary != null }
-        val ended = requireNotNull(db.sessionDao().getById(SESSION_ID)).endedAt
-        val sets = db.sessionSetDao().ofSession(SESSION_ID).size
+        val sessionId = viewModel.state.value.sessionId
+        val ended = requireNotNull(db.sessionDao().getById(sessionId)).endedAt
+        val sets = db.sessionSetDao().ofSession(sessionId).size
 
-        // Un toque tardío sobre "Serie hecha" no puede cerrar dos veces.
+        // Un toque tardío sobre "Serie hecha" o "Terminar" no puede cerrar dos veces.
+        viewModel.finishNow()
         viewModel.logSetNow()
 
-        assertEquals(ended, db.sessionDao().getById(SESSION_ID)?.endedAt)
-        assertEquals(sets, db.sessionSetDao().ofSession(SESSION_ID).size)
-        assertEquals(RowStatus.FINISHED, db.sessionDao().getById(SESSION_ID)?.status)
+        assertEquals(ended, db.sessionDao().getById(sessionId)?.endedAt)
+        assertEquals(sets, db.sessionSetDao().ofSession(sessionId).size)
+        assertEquals(RowStatus.FINISHED, db.sessionDao().getById(sessionId)?.status)
     }
 
     // --- andamiaje --------------------------------------------------------------------
@@ -246,20 +251,6 @@ class EntrenarSummaryTest {
     private suspend fun savePlan() {
         exercises.saveMuscle(Muscle(id = "m1", name = "Pecho"))
         exercises.saveMuscle(Muscle(id = "m2", name = "Espalda"))
-        val press = Exercise(
-            id = "e1",
-            name = "Press banca",
-            primaryMuscleId = "m1",
-            secondsPerSet = 40,
-            restSeconds = 90,
-        )
-        val row = Exercise(
-            id = "e2",
-            name = "Remo",
-            primaryMuscleId = "m2",
-            secondsPerSet = 40,
-            restSeconds = 120,
-        )
         exercises.saveExercise(press)
         exercises.saveExercise(row)
         routines.saveRoutine(
@@ -271,7 +262,7 @@ class EntrenarSummaryTest {
                         id = DAY_ID,
                         name = "Día A",
                         items = listOf(
-                            DayItem(id = "i1", exercise = press, sets = 2, supersetNext = true),
+                            DayItem(id = "i1", exercise = press, sets = 2),
                             DayItem(id = "i2", exercise = row, sets = 2),
                         ),
                     ),
@@ -314,41 +305,35 @@ class EntrenarSummaryTest {
         sessions.finish(PRIOR_ID, LocalDateTime(2026, 11, 17, 11, 0))
     }
 
-    private suspend fun startGuidedSession() {
-        sessions.dispatch(
-            state = GuidedSession(day = requireNotNull(routines.day(DAY_ID))),
-            event = StartSession(sessionId = SESSION_ID, now = clock),
-            now = clock,
-        )
+    private suspend fun startTraining() {
         viewModel = EntrenarViewModel(
             sessions = sessions,
             settings = settings,
             exercises = exercises,
+            routines = routines,
             scope = scope,
             now = { Instants.fromEpochMillis(clock.toEpochMilli(), zone) },
             nowInstant = { clock },
         )
         viewModel.start()
+        awaitState { it.phase == EntrenarPhase.ACTIVE }
     }
 
-    /**
-     * Recorre la superserie completa (2 rondas, 4 series) y termina la sesión.
-     * Cada serie queda un minuto después de la anterior.
-     */
-    private suspend fun playSession(press: Double, row: Double) {
-        awaitState { it.phase == EntrenarPhase.ACTIVE }
+    /** Una serie de 5 reps del ejercicio actual (Press) y después una de Remo. */
+    private suspend fun play(press: Double, row: Double) {
         log(press)
+        advance(60)
+        viewModel.pickExercise("e2")
+        awaitState { it.exerciseName == "Remo" }
         log(row)
-        viewModel.skipRestNow()
-        log(press)
-        log(row)
+        advance(60)
     }
 
     private suspend fun log(weight: Double) {
         viewModel.setWeight(weight)
         viewModel.setReps(5.0)
         viewModel.logSetNow()
-        advance(60)
+        awaitState { state -> state.sets.any { group -> group.sets.any { it.weightLabel == formatNumber(weight) + " kg" } } }
     }
 
     private fun advance(seconds: Long) {
@@ -361,7 +346,21 @@ class EntrenarSummaryTest {
     private companion object {
         const val ROUTINE_ID = "routine-summary"
         const val DAY_ID = "day-summary"
-        const val SESSION_ID = "session-summary"
         const val PRIOR_ID = "session-prior"
+
+        val press = Exercise(
+            id = "e1",
+            name = "Press banca",
+            primaryMuscleId = "m1",
+            secondsPerSet = 40,
+            restSeconds = 90,
+        )
+        val row = Exercise(
+            id = "e2",
+            name = "Remo",
+            primaryMuscleId = "m2",
+            secondsPerSet = 40,
+            restSeconds = 120,
+        )
     }
 }

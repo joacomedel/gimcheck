@@ -82,6 +82,52 @@ class SettingsRepository internal constructor(
         }
     }
 
+    // --- entrenamiento libre (GIM-49) ---------------------------------------------
+
+    /** Ejercicio que se está cargando en Entrenar, o `null` si todavía no se eligió. */
+    suspend fun trainingExercise(): String? = withContext(io) {
+        dao.all()
+            .firstOrNull { it.key == SettingKeys.TRAINING_EXERCISE }
+            ?.value
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * Recuerda el ejercicio actual del entrenamiento abierto.
+     *
+     * Se guarda fuera de [AppSettings] a propósito: es el cursor de una actividad, no una
+     * preferencia, y [reset] no tiene que borrarlo.
+     */
+    suspend fun setTrainingExercise(id: String?) = withContext(io) {
+        if (id == null) {
+            dao.delete(SettingKeys.TRAINING_EXERCISE)
+        } else {
+            dao.put(AppSettingEntity(key = SettingKeys.TRAINING_EXERCISE, value = id))
+        }
+    }
+
+    /**
+     * Descanso del entrenamiento libre ya persistido: `(deadline epoch millis, duración)`.
+     * Cualquiera de los dos puede faltar; sin deadline no hay descanso vivo.
+     */
+    suspend fun trainingRest(): Pair<Long?, Int?> = withContext(io) {
+        val rows = dao.all().associate { it.key to it.value }
+        val endsAt = rows[SettingKeys.TRAINING_REST_ENDS_AT]?.toLongOrNull()
+        val seconds = rows[SettingKeys.TRAINING_REST_SECONDS]?.toIntOrNull()
+        endsAt to seconds
+    }
+
+    /** Persiste (o limpia, con `null`) el descanso del entrenamiento libre. */
+    suspend fun setTrainingRest(endsAtMillis: Long?, seconds: Int?) = withContext(io) {
+        if (endsAtMillis == null || seconds == null || seconds <= 0) {
+            dao.delete(SettingKeys.TRAINING_REST_ENDS_AT)
+            dao.delete(SettingKeys.TRAINING_REST_SECONDS)
+        } else {
+            dao.put(AppSettingEntity(key = SettingKeys.TRAINING_REST_ENDS_AT, value = endsAtMillis.toString()))
+            dao.put(AppSettingEntity(key = SettingKeys.TRAINING_REST_SECONDS, value = seconds.toString()))
+        }
+    }
+
     private suspend fun read(): AppSettings =
         AppSettingsCodec.decode(dao.all().associate { it.key to it.value })
 

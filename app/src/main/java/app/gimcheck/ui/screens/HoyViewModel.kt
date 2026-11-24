@@ -2,11 +2,9 @@ package app.gimcheck.ui.screens
 
 import app.gimcheck.AppContainer
 import app.gimcheck.core.BodyMetric
-import app.gimcheck.core.GuidedSession
 import app.gimcheck.core.Routine
 import app.gimcheck.core.RoutineDay
 import app.gimcheck.core.Session
-import app.gimcheck.core.StartSession
 import app.gimcheck.core.dayStats
 import app.gimcheck.core.formatDuration
 import app.gimcheck.core.formatNumber
@@ -31,7 +29,6 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.toKotlinLocalDateTime
 import java.time.Duration
 import java.time.Instant
-import java.util.UUID
 import kotlin.math.roundToInt
 
 /**
@@ -108,11 +105,9 @@ data class HoyRecentUi(
  * escribe la `body_metric` de **hoy** (clave natural de §2). Si ya existía, la
  * sobrescribe, que es la corrección que pide el ticket.
  *
- * **Empezar sesión**: no reimplementa la máquina. Arma el [GuidedSession] del día
- * elegido y le pasa [StartSession] a [SessionRepository.dispatch]; el repositorio
- * persiste la fila `session` y el `session_state` del primer bloque (efecto
- * `PersistState`). Después refresca [SessionResumer] para que el botón pase a
- * "Continuar sesión" sin esperar un `ON_START`.
+ * **Empezar/continuar entrenamiento**: desde GIM-49 Entrenar es un entrenamiento
+ * abierto que se crea solo al entrar (sin día planificado ni `session_state`). Hoy sólo
+ * navega: no hay una segunda noción de sesión que arrancar acá.
  */
 class HoyViewModel internal constructor(
     private val routines: RoutineRepository,
@@ -124,7 +119,6 @@ class HoyViewModel internal constructor(
     private val scope: CoroutineScope,
     private val now: () -> LocalDateTime = { java.time.LocalDateTime.now().toKotlinLocalDateTime() },
     private val nowInstant: () -> Instant = Instant::now,
-    private val newId: () -> String = { UUID.randomUUID().toString() },
 ) {
 
     constructor(container: AppContainer, scope: CoroutineScope) : this(
@@ -229,27 +223,16 @@ class HoyViewModel internal constructor(
     }
 
     /**
-     * Crea la sesión del día elegido y su cursor. Devuelve `false` si no hay rutina/día.
-     *
-     * La pantalla navega a Entrenar sólo cuando esto devuelve `true`: no se abre una
-     * pantalla de sesión sin sesión en la base.
+     * "Empezar/continuar entrenamiento": la pantalla navega a Entrenar y el ViewModel de
+     * esa pantalla crea o retoma el entrenamiento abierto (GIM-49). Devuelve `false` sólo
+     * si no hay ni rutina ni catálogo, para no abrir una pantalla vacía.
      */
     fun startSession(onResult: (Boolean) -> Unit) {
         scope.launch { onResult(startSessionNow()) }
     }
 
-    internal suspend fun startSessionNow(): Boolean {
-        val dayId = selectedDayId ?: _state.value.selectedDayId ?: return false
-        val day = routines.day(dayId) ?: return false
-        val sessionId = newId()
-        sessions.dispatch(
-            state = GuidedSession(day = day, sessionId = sessionId),
-            event = StartSession(sessionId = sessionId, now = nowInstant()),
-            now = nowInstant(),
-        )
-        resumer.resume()
-        return true
-    }
+    internal suspend fun startSessionNow(): Boolean =
+        _state.value.hasRoutine || if (selectedDayId != null) routines.day(selectedDayId) != null else false
 
     /** Descarta la sesión abierta (la deja `ABANDONED`) y refresca el estado. */
     fun discardActiveSession() {

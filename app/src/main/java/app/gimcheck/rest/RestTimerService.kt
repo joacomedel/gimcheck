@@ -14,13 +14,14 @@ import androidx.core.content.ContextCompat
  * El cronómetro de descanso, fuera de la pantalla (GIM-22, `docs/especificacion.md` §4,
  * ADR 0004).
  *
- * **No cuenta hacia atrás en memoria**: recibe el deadline absoluto (`rest_ends_at`, el
- * mismo `restEndsAt` de `:core`) y en cada pulso calcula `deadline − ahora`. Si el
- * proceso muere y el servicio con él, la alarma exacta avisa igual y al reabrir la app
- * el `Restore` de la máquina reconstruye el estado desde el mismo `rest_ends_at`.
+ * **No cuenta hacia atrás en memoria**: recibe el deadline absoluto y en cada pulso
+ * calcula `deadline − ahora`. Si el proceso muere y el servicio con él, la alarma exacta
+ * avisa igual; al reabrir, el deadline persistido (`app_setting`, claves `training.*`)
+ * reconstruye la cuenta con el mismo valor.
  *
  * **Quién lo arranca y lo para**: [AndroidRestGateway], que implementa el `RestGateway`
- * de `EntrenarViewModel`. La pantalla no lo toca: la única fuente es `session_state`.
+ * de `EntrenarViewModel`. La pantalla no lo toca: la única fuente es el deadline que
+ * persiste el ViewModel.
  *
  * La notificación se reescribe cada 5 s (y cada segundo en los últimos 10) con
  * `setOnlyAlertOnce`, así no se despierta la CPU de más ni se alerta dos veces.

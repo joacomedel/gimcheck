@@ -58,28 +58,21 @@ import app.gimcheck.ui.theme.GimTheme
 import kotlinx.coroutines.delay
 
 /**
- * **Entrenar** — §6 fila 2 y `docs/diseno.md` §8 #2. Es el corazón de la app: anotar una
- * serie y que la app lleve sola al siguiente ítem de la superserie, con el descanso
- * arrancando recién al cerrar la ronda.
+ * **Entrenar** — el entrenamiento abierto del dueño (GIM-49).
  *
- * Jerarquía (de arriba abajo, la del contrato): bloque actual + progreso (`Meter` de
- * series hechas) · indicador "Superserie 1/2" · ejercicio en `titulo` + "Ronda 2 de 3" ·
- * cuenta regresiva (`TimerRing`) con "−15 s", "Saltar" y "+15 s" · dos `SetStepper`
- * grandes (peso con paso `weightStep`, reps de 1) con chip de calentamiento · series
- * anotadas del bloque (`SetRow`, tocables para corregir) · acción primaria "Serie hecha"
- * de 52 dp al pie.
+ * La pantalla ya no recorre un día planificado ni pide "empezar sesión": hay **un
+ * entrenamiento** donde se cargan series del ejercicio elegido. El nombre del ejercicio
+ * es un botón que abre el selector (rutina activa, con `+` para ver todas las rutinas) y
+ * la superserie se avisa arriba: al anotar la serie, el cursor pasa una vez al siguiente
+ * ejercicio sin descanso y se queda ahí.
  *
- * **Cero lógica de negocio acá**: el estado viene de [EntrenarViewModel] y el cursor lo
- * mueve la máquina de `:core`. Esta pantalla no sabe cuándo hay descanso; sólo dibuja
- * `state.rest`, que sale de `rest_ends_at`.
+ * **Cero lógica de negocio acá**: el estado viene de [EntrenarViewModel]; el peso, las
+ * reps y el descanso se dibujan tal cual. La pantalla no decide cuándo hay descanso ni a
+ * qué ejercicio se salta.
  *
- * **Fin de sesión**: al cerrar el último bloque la máquina emite `SessionFinished`; el
- * repositorio cierra la sesión con `ended_at` y esta pantalla muestra el resumen real
- * (duración, volumen, series, PRs del día y volumen por músculo, GIM-24). No se agrega una
- * décima ruta porque §8 tiene nueve y el grafo está fijado por test.
- *
- * **Salir** pide confirmación (§7.7): la sesión sigue viva, sólo se cierra la pantalla.
- * **Abandonar** es la otra salida: cierra la sesión como `ABANDONED` y no genera resumen.
+ * **Salir** no termina el entrenamiento (queda abierto). **Terminar** lo cierra y muestra
+ * el resumen real (duración, volumen, series, PRs y volumen por músculo). **Descartar** lo
+ * deja `ABANDONED` y no genera resumen.
  */
 @Composable
 fun EntrenarScreen(
@@ -88,7 +81,7 @@ fun EntrenarScreen(
 ) {
     val container = LocalAppContainer.current
     if (container == null) {
-        // Preview o test de composición sin app: no hay sesión que guiar (§9: no aplica).
+        // Preview o test de composición sin app: no hay entrenamiento que mostrar.
         PlaceholderScreen(
             title = stringResource(R.string.nav_entrenar),
             hint = stringResource(R.string.ph_entrenar),
@@ -117,7 +110,7 @@ fun EntrenarScreen(
 
     KeepScreenOn(enabled = state.keepScreenOn && state.phase == EntrenarPhase.ACTIVE)
 
-    // Pulso del cronómetro: la máquina decide si el descanso venció; acá sólo se pide.
+    // Pulso del cronómetro: el ViewModel decide si el descanso venció; acá sólo se pide.
     val resting = state.rest != null
     LaunchedEffect(resting) {
         if (!resting) return@LaunchedEffect
@@ -143,6 +136,12 @@ fun EntrenarScreen(
         onAskDelete = viewModel::askDelete,
         onCancelDelete = viewModel::cancelDelete,
         onDelete = viewModel::deleteSet,
+        onOpenPicker = viewModel::openPicker,
+        onClosePicker = viewModel::closePicker,
+        onShowAllRoutines = viewModel::showAllRoutines,
+        onShowActiveRoutine = viewModel::showActiveRoutine,
+        onPickExercise = viewModel::pickExercise,
+        onFinish = { viewModel.finish() },
         onExit = onExit,
         onAbandon = { viewModel.abandon(onExit) },
         modifier = modifier,
@@ -166,6 +165,12 @@ private fun EntrenarContent(
     onAskDelete: () -> Unit,
     onCancelDelete: () -> Unit,
     onDelete: () -> Unit,
+    onOpenPicker: () -> Unit,
+    onClosePicker: () -> Unit,
+    onShowAllRoutines: () -> Unit,
+    onShowActiveRoutine: () -> Unit,
+    onPickExercise: (String) -> Unit,
+    onFinish: () -> Unit,
     onExit: () -> Unit,
     onAbandon: () -> Unit,
     modifier: Modifier = Modifier,
@@ -188,26 +193,42 @@ private fun EntrenarContent(
             modifier = modifier,
         )
 
-        EntrenarPhase.ACTIVE -> EntrenarActive(
-            state = state,
-            onWeight = onWeight,
-            onReps = onReps,
-            onToggleWarmup = onToggleWarmup,
-            onLogSet = onLogSet,
-            onSkipRest = onSkipRest,
-            onExtendRest = onExtendRest,
-            onEditSet = onEditSet,
-            onCancelEdit = onCancelEdit,
-            onEditingWeight = onEditingWeight,
-            onEditingReps = onEditingReps,
-            onSaveCorrection = onSaveCorrection,
-            onAskDelete = onAskDelete,
-            onCancelDelete = onCancelDelete,
-            onDelete = onDelete,
-            onExit = onExit,
-            onAbandon = onAbandon,
-            modifier = modifier,
-        )
+        EntrenarPhase.ACTIVE -> {
+            val picker = state.picker
+            if (picker != null) {
+                EntrenarPicker(
+                    picker = picker,
+                    onPick = onPickExercise,
+                    onShowAll = onShowAllRoutines,
+                    onShowActive = onShowActiveRoutine,
+                    onClose = onClosePicker,
+                    modifier = modifier,
+                )
+            } else {
+                EntrenarActive(
+                    state = state,
+                    onWeight = onWeight,
+                    onReps = onReps,
+                    onToggleWarmup = onToggleWarmup,
+                    onLogSet = onLogSet,
+                    onSkipRest = onSkipRest,
+                    onExtendRest = onExtendRest,
+                    onEditSet = onEditSet,
+                    onCancelEdit = onCancelEdit,
+                    onEditingWeight = onEditingWeight,
+                    onEditingReps = onEditingReps,
+                    onSaveCorrection = onSaveCorrection,
+                    onAskDelete = onAskDelete,
+                    onCancelDelete = onCancelDelete,
+                    onDelete = onDelete,
+                    onOpenPicker = onOpenPicker,
+                    onFinish = onFinish,
+                    onExit = onExit,
+                    onAbandon = onAbandon,
+                    modifier = modifier,
+                )
+            }
+        }
     }
 }
 
@@ -228,19 +249,21 @@ private fun EntrenarActive(
     onAskDelete: () -> Unit,
     onCancelDelete: () -> Unit,
     onDelete: () -> Unit,
+    onOpenPicker: () -> Unit,
+    onFinish: () -> Unit,
     onExit: () -> Unit,
     onAbandon: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = GimTheme.colors
     var confirmingExit by remember { mutableStateOf(false) }
-    var confirmingAbandon by remember { mutableStateOf(false) }
+    var confirmingDiscard by remember { mutableStateOf(false) }
 
-    // Salir no termina la sesión: pide confirmación y vuelve a Hoy (§7.7). Abandonar sí la
-    // cierra como `ABANDONED`, y por eso va detrás de su propia confirmación (GIM-24).
+    // Salir no termina el entrenamiento: pide confirmación y vuelve a Hoy. Terminar cierra
+    // la sesión (y muestra el resumen); descartar la deja ABANDONED.
     BackHandler {
         when {
-            confirmingAbandon -> confirmingAbandon = false
+            confirmingDiscard -> confirmingDiscard = false
             confirmingExit -> confirmingExit = false
             else -> confirmingExit = true
         }
@@ -257,7 +280,7 @@ private fun EntrenarActive(
         ) {
             item { EntrenarHeader(state) }
             item { EntrenarProgress(state) }
-            item { EntrenarExercise(state) }
+            item { EntrenarExercise(state, onOpenPicker) }
 
             val rest = state.rest
             if (rest != null) {
@@ -279,17 +302,10 @@ private fun EntrenarActive(
                 )
             }
 
-            item { SectionHeader(title = state.blockName) }
-
             state.sets.forEach { group ->
                 item(key = group.itemId) {
                     Column(verticalArrangement = Arrangement.spacedBy(GimSpacing.xs)) {
-                        Text(
-                            text = group.exerciseName,
-                            style = GimText.detalle,
-                            color = colors.muted,
-                            maxLines = 1,
-                        )
+                        SectionHeader(title = group.exerciseName)
                         group.sets.forEach { row ->
                             SetRow(
                                 index = row.number,
@@ -320,11 +336,11 @@ private fun EntrenarActive(
         Column(modifier = Modifier.padding(horizontal = GimSpacing.l)) {
             Spacer(modifier = Modifier.height(GimSpacing.s))
             when {
-                confirmingAbandon -> ConfirmInline(
+                confirmingDiscard -> ConfirmInline(
                     question = stringResource(R.string.ph_confirmar_abandono),
                     onConfirm = onAbandon,
-                    onCancel = { confirmingAbandon = false },
-                    confirmLabel = stringResource(R.string.accion_abandonar),
+                    onCancel = { confirmingDiscard = false },
+                    confirmLabel = stringResource(R.string.entrenar_descartar),
                 )
 
                 confirmingExit -> {
@@ -335,13 +351,22 @@ private fun EntrenarActive(
                         confirmLabel = stringResource(R.string.accion_salir),
                     )
                     Text(
-                        text = stringResource(R.string.accion_abandonar),
+                        text = stringResource(R.string.entrenar_terminar),
+                        style = GimText.boton,
+                        color = colors.accent,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = GimHeight.row)
+                            .clickable(role = Role.Button) { onFinish() },
+                    )
+                    Text(
+                        text = stringResource(R.string.entrenar_descartar),
                         style = GimText.boton,
                         color = colors.bad,
                         maxLines = 1,
                         modifier = Modifier
                             .defaultMinSize(minHeight = GimHeight.row)
-                            .clickable(role = Role.Button) { confirmingAbandon = true },
+                            .clickable(role = Role.Button) { confirmingDiscard = true },
                     )
                 }
 
@@ -365,27 +390,24 @@ private fun EntrenarActive(
     }
 }
 
-/** Día y bloque actual: "Bloque 2 de 4". */
+/** Rutina del entrenamiento y cuántas series van. */
 @Composable
 private fun EntrenarHeader(state: EntrenarUiState) {
     val colors = GimTheme.colors
-    Column {
-        Text(
-            text = state.dayName,
-            style = GimText.etiqueta,
-            color = colors.muted,
-            maxLines = 1,
-        )
-        Text(
-            text = stringResource(R.string.entrenar_bloque, state.blockNumber, state.blockCount),
-            style = GimText.detalle,
-            color = colors.muted,
-            maxLines = 1,
-        )
+    val label = if (state.routineName.isBlank()) {
+        stringResource(R.string.entrenar_libre)
+    } else {
+        state.routineName
     }
+    Text(
+        text = label,
+        style = GimText.etiqueta,
+        color = colors.muted,
+        maxLines = 1,
+    )
 }
 
-/** Series hechas / totales del día sobre la barra del contrato (§5 `Meter`). */
+/** Series de trabajo anotadas en el entrenamiento. */
 @Composable
 private fun EntrenarProgress(state: EntrenarUiState) {
     val colors = GimTheme.colors
@@ -396,12 +418,12 @@ private fun EntrenarProgress(state: EntrenarUiState) {
     ) {
         Meter(
             value = state.setsDone.toFloat(),
-            max = state.setsTotal.toFloat(),
+            max = state.setsDone.coerceAtLeast(1).toFloat(),
             color = colors.accent,
             modifier = Modifier.weight(1f),
         )
         Text(
-            text = stringResource(R.string.entrenar_progreso, state.setsDone, state.setsTotal),
+            text = stringResource(R.string.entrenar_series_hechas, state.setsDone),
             style = GimText.etiqueta,
             color = colors.ink2,
             maxLines = 1,
@@ -409,36 +431,53 @@ private fun EntrenarProgress(state: EntrenarUiState) {
     }
 }
 
-/** Indicador de superserie, ejercicio actual y ronda. */
+/**
+ * Ejercicio actual: el nombre es el botón del selector. Debajo, el músculo y el aviso de
+ * superserie o el salto que acaba de hacer la app.
+ */
 @Composable
-private fun EntrenarExercise(state: EntrenarUiState) {
+private fun EntrenarExercise(state: EntrenarUiState, onOpenPicker: () -> Unit) {
     val colors = GimTheme.colors
+    val change = stringResource(R.string.entrenar_cambiar_ejercicio)
     Column(verticalArrangement = Arrangement.spacedBy(GimSpacing.xs)) {
-        if (state.supersetSize > 1) {
-            Text(
-                text = stringResource(
-                    R.string.entrenar_superserie,
-                    state.supersetPosition,
-                    state.supersetSize,
-                ),
-                style = GimText.etiqueta,
-                color = colors.ink2,
-                maxLines = 1,
-            )
-        }
         Text(
             text = state.exerciseName,
             style = GimText.titulo,
             color = colors.ink,
+            modifier = Modifier.clickable(
+                onClickLabel = change,
+                role = Role.Button,
+                onClick = onOpenPicker,
+            ),
         )
+        if (state.muscleName.isNotBlank()) {
+            Text(
+                text = state.muscleName,
+                style = GimText.detalle,
+                color = colors.muted,
+                maxLines = 1,
+            )
+        }
         Text(
-            text = stringResource(R.string.entrenar_ronda, state.round, state.rounds),
-            style = GimText.detalle,
-            color = colors.muted,
+            text = change,
+            style = GimText.etiqueta,
+            color = colors.accent,
             maxLines = 1,
+            modifier = Modifier.clickable(
+                onClickLabel = change,
+                role = Role.Button,
+                onClick = onOpenPicker,
+            ),
         )
+        state.supersetNextName?.let { next ->
+            Text(
+                text = stringResource(R.string.entrenar_superserie_sigue, next),
+                style = GimText.detalle,
+                color = colors.ink2,
+            )
+        }
         state.jumpTo?.let { next ->
-            // Feedback del salto de superserie: el cursor ya está en el próximo ítem.
+            // Feedback del salto de superserie: el cursor ya está en el próximo ejercicio.
             Text(
                 text = stringResource(R.string.entrenar_seguir_con, next),
                 style = GimText.cuerpo,
@@ -446,9 +485,6 @@ private fun EntrenarExercise(state: EntrenarUiState) {
             )
         }
         if (state.restDone) {
-            // El aviso inline del fin de descanso (§5): con la app en primer plano no se
-            // usa full-screen intent, la señal es la vibración/sonido y el texto aparece
-            // acá, sin sacar al usuario de la pantalla.
             Text(
                 text = stringResource(R.string.entrenar_descanso_terminado_inline),
                 style = GimText.cuerpo,
@@ -456,6 +492,111 @@ private fun EntrenarExercise(state: EntrenarUiState) {
             )
         }
     }
+}
+
+/**
+ * Selector del nombre del ejercicio (GIM-49): la rutina activa agrupada por día y la
+ * acción `+ Ver todas las rutinas`. Elegir un ejercicio lo deja como actual; no navega.
+ */
+@Composable
+private fun EntrenarPicker(
+    picker: EntrenarPickerUi,
+    onPick: (String) -> Unit,
+    onShowAll: () -> Unit,
+    onShowActive: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = GimTheme.colors
+    BackHandler(onBack = onClose)
+    Column(modifier = modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = GimSpacing.l)
+                .padding(top = GimSpacing.l),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.entrenar_elegir_ejercicio),
+                    style = GimText.titulo,
+                    color = colors.ink,
+                )
+                Text(
+                    text = stringResource(
+                        if (picker.showingAll) R.string.entrenar_todas_rutinas else R.string.entrenar_tu_rutina,
+                    ),
+                    style = GimText.detalle,
+                    color = colors.muted,
+                )
+            }
+            ActionText(
+                label = stringResource(R.string.accion_cancelar),
+                color = colors.ink2,
+                onClick = onClose,
+            )
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = GimSpacing.l),
+            contentPadding = PaddingValues(top = GimSpacing.l, bottom = GimSpacing.l),
+            verticalArrangement = Arrangement.spacedBy(GimSpacing.xs),
+        ) {
+            picker.groups.forEach { group ->
+                item(key = "grupo-${group.routineId}-${group.dayName}") {
+                    SectionHeader(
+                        title = if (picker.showingAll) {
+                            "${group.routineName} · ${group.dayName}"
+                        } else {
+                            group.dayName
+                        },
+                    )
+                }
+                items(
+                    items = group.items,
+                    key = { item -> "ej-${group.routineId}-${group.dayName}-${item.exerciseId}" },
+                ) { item ->
+                    Text(
+                        text = item.name,
+                        style = GimText.cuerpo,
+                        color = colors.ink,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = GimHeight.row)
+                            .clickable(role = Role.Button) { onPick(item.exerciseId) },
+                    )
+                }
+            }
+            item(key = "picker-mas") {
+                ActionText(
+                    label = stringResource(
+                        if (picker.showingAll) R.string.entrenar_volver_rutina else R.string.entrenar_ver_todas,
+                    ),
+                    color = colors.accent,
+                    onClick = if (picker.showingAll) onShowActive else onShowAll,
+                )
+            }
+        }
+    }
+}
+
+/** Acción de texto alineada a la izquierda (compartida por el picker). */
+@Composable
+private fun ActionText(label: String, color: Color, onClick: () -> Unit) {
+    Text(
+        text = label,
+        style = GimText.boton,
+        color = color,
+        maxLines = 1,
+        modifier = Modifier
+            .defaultMinSize(minHeight = GimHeight.row)
+            .clickable(role = Role.Button, onClick = onClick),
+    )
 }
 
 /** Cuenta regresiva desde el deadline absoluto, con "Saltar" y "±15 s". */
@@ -513,7 +654,7 @@ private fun RestAction(label: String, onClick: () -> Unit, modifier: Modifier = 
     }
 }
 
-/** Peso y reps con `SetStepper` grandes + chip de calentamiento. */
+/** Peso y reps con `SetStepper` grandes (el número también se escribe) + calentamiento. */
 @Composable
 private fun EntrenarInputs(
     state: EntrenarUiState,
@@ -542,6 +683,7 @@ private fun EntrenarInputs(
                 modifier = Modifier.weight(1f),
                 large = true,
                 max = MAX_REPS.toDouble(),
+                wholeNumbers = true,
             )
         }
         ChipFilter(
@@ -553,9 +695,9 @@ private fun EntrenarInputs(
 }
 
 /**
- * Corrección de una serie anotada. Es `UPDATE` de `session_set`, no un evento de la
- * máquina: **el cursor no se mueve** (§4). El borrado pide confirmación en el lugar
- * ([ConfirmInline]), nunca un diálogo.
+ * Corrección de una serie anotada. Es `UPDATE` de `session_set`, no un evento del
+ * entrenamiento: **el ejercicio actual no cambia**. El borrado pide confirmación en el
+ * lugar ([ConfirmInline]), nunca un diálogo.
  */
 @Composable
 private fun SetEditor(
@@ -593,6 +735,7 @@ private fun SetEditor(
                 label = stringResource(R.string.ph_reps),
                 modifier = Modifier.weight(1f),
                 max = MAX_REPS.toDouble(),
+                wholeNumbers = true,
             )
         }
         if (state.confirmingDelete) {
@@ -648,15 +791,11 @@ private fun EditorAction(
 }
 
 /**
- * **Fin de sesión** (GIM-24): resumen de lo que quedó guardado.
+ * **Fin de entrenamiento**: resumen de lo que quedó guardado.
  *
- * Un solo scroll con la jerarquía del contrato: título + día, duración y series en
- * `StatTile`, volumen total, `SectionHeader` "PRs del día" (una fila por ejercicio con
- * badge en `good`) y `SectionHeader` "Volumen por músculo" con `Meter` por músculo (top 5).
- * La acción primaria "Listo" vuelve a Hoy, donde la sesión ya aparece en "Últimos".
- *
- * Mientras [EntrenarUiState.summary] se calcula se muestra el título y las series anotadas:
- * nunca hay números de relleno (`docs/diseno.md` §9).
+ * Un solo scroll con la jerarquía del contrato: título + rutina, duración y series en
+ * `StatTile`, volumen total, `SectionHeader` "PRs del día" y `SectionHeader` "Volumen por
+ * músculo" con `Meter` por músculo (top 5). La acción primaria "Listo" vuelve a Hoy.
  */
 @Composable
 private fun EntrenarFinished(
@@ -683,7 +822,7 @@ private fun EntrenarFinished(
                         color = colors.ink,
                     )
                     Text(
-                        text = summary?.dayName ?: state.dayName,
+                        text = summary?.dayName ?: state.routineName,
                         style = GimText.detalle,
                         color = colors.muted,
                         maxLines = 1,

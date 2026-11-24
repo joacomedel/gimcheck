@@ -2,8 +2,6 @@ package app.gimcheck.ui.screens
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import app.gimcheck.core.LogSet
-import app.gimcheck.core.SessionEffect
 import app.gimcheck.core.dayStats
 import app.gimcheck.core.formatDuration
 import app.gimcheck.data.db.AppDatabase
@@ -26,7 +24,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.datetime.LocalDateTime
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -83,7 +81,6 @@ class HoyViewModelTest {
         resumer = SessionResumer(sessions, scope, now = { t0 })
         SeedImporter(db).seedIfEmpty(seedJson)
 
-        var id = 0
         viewModel = HoyViewModel(
             routines = routines,
             exercises = exercises,
@@ -94,7 +91,6 @@ class HoyViewModelTest {
             scope = scope,
             now = { now },
             nowInstant = { t0 },
-            newId = { "session-${id++}" },
         )
         viewModel.start()
     }
@@ -130,7 +126,7 @@ class HoyViewModelTest {
     }
 
     @Test
-    fun `con la rutina B activa Hoy arranca su dia y la superserie salta`() = runBlocking {
+    fun `con la rutina B activa Hoy muestra su plan y deja entrenar`() = runBlocking {
         loadedState()
         val all = routines.observeRoutines().first()
         val routineB = requireNotNull(all.firstOrNull { it.name.startsWith("Rutina B") }) {
@@ -149,21 +145,10 @@ class HoyViewModelTest {
         assertEquals("Press plano", press.exercise.name)
         assertTrue("la Rutina B del seed tiene superserie en el press plano", press.supersetNext)
 
-        assertTrue("la sesión tiene que arrancar desde Hoy", viewModel.startSessionNow())
-        val guided = requireNotNull(sessions.guidedNow()) { "no se creó la sesión guiada" }
-        assertEquals(day.id, guided.day.id)
-
-        val transition = sessions.dispatch(
-            guided,
-            LogSet(weightKg = 60.0, reps = 5, isWarmup = false, at = now, now = t0),
-            t0,
-        )
-        assertEquals(
-            "anotar el press plano tiene que dejar el cursor en el siguiente de la superserie",
-            "Antebrazo",
-            transition.state.currentItem?.exercise?.name,
-        )
-        assertTrue(SessionEffect.ShowNextInSuperset in transition.effects)
+        // El salto de la superserie se verifica en EntrenarViewModelTest: Hoy sólo navega
+        // y el entrenamiento se crea al entrar (GIM-49).
+        assertTrue("empezar/continuar siempre navega a Entrenar", viewModel.startSessionNow())
+        assertNull("Hoy ya no crea la sesión guiada", sessions.guidedNow())
     }
 
     @Test
@@ -189,19 +174,12 @@ class HoyViewModelTest {
     }
 
     @Test
-    fun `empezar sesion crea session y session_state en el primer bloque`() = runBlocking {
-        val state = loadedState()
+    fun `empezar sesion ya no crea nada, lo hace Entrenar al entrar`() = runBlocking {
+        loadedState()
 
         assertTrue(viewModel.startSessionNow())
 
-        val active = withTimeout(5_000) { sessions.observeActive().first { it != null } }
-        assertNotNull(active)
-        assertEquals(state.selectedDayId, active?.routineDayId)
-
-        val guided = withTimeout(5_000) { sessions.observeGuided().first { it != null } }
-        assertNotNull(guided)
-        assertEquals(0, guided?.blockIndex)
-        assertEquals(0, guided?.roundIndex)
-        assertEquals(0, guided?.itemIndex)
+        assertNull("Hoy no crea la sesión", sessions.observeActive().first())
+        assertNull("Hoy no escribe session_state", sessions.guidedNow())
     }
 }

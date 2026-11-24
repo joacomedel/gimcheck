@@ -134,6 +134,35 @@ class SessionRepository internal constructor(
         sessionDao.close(id, Instants.toEpochMillis(endedAt, zone), RowStatus.FINISHED, notes)
     }
 
+    /**
+     * Devuelve la sesión abierta o crea una nueva (entrenamiento libre, GIM-49).
+     *
+     * A diferencia de [start], **no falla** si ya hay una `ACTIVE`: en el modelo del dueño
+     * hay un solo entrenamiento abierto y entrar a Entrenar lo retoma. `routine_day_id`
+     * queda en `null` porque las series ya no pertenecen a un día del plan; `routine_id`
+     * conserva la rutina activa para el histórico.
+     */
+    suspend fun openOrCreate(
+        routineId: String?,
+        startedAt: LocalDateTime,
+        routineDayId: String? = null,
+    ): String = withContext(io) {
+        sessionDao.active()?.let { return@withContext it.id }
+        val id = newId()
+        sessionDao.startSession(
+            SessionEntity(
+                id = id,
+                routineId = routineId,
+                routineDayId = routineDayId,
+                startedAt = Instants.toEpochMillis(startedAt, zone),
+                endedAt = null,
+                status = RowStatus.ACTIVE,
+                bodyWeightKg = null,
+            ),
+        )
+        id
+    }
+
     /** Cierra la sesión como abandonada (descartar la que quedó abierta). */
     suspend fun abandon(id: String, endedAt: LocalDateTime) = withContext(io) {
         sessionDao.close(id, Instants.toEpochMillis(endedAt, zone), RowStatus.ABANDONED, null)

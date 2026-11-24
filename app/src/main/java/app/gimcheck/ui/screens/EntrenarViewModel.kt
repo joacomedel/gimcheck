@@ -1,28 +1,29 @@
 package app.gimcheck.ui.screens
 
 import app.gimcheck.AppContainer
-import app.gimcheck.core.AbandonSession
 import app.gimcheck.core.DayItem
-import app.gimcheck.core.ExtendRest
-import app.gimcheck.core.GuidedSession
+import app.gimcheck.core.Exercise
 import app.gimcheck.core.LoadType
-import app.gimcheck.core.LogSet
-import app.gimcheck.core.SessionEffect
+import app.gimcheck.core.Routine
+import app.gimcheck.core.Session
 import app.gimcheck.core.SessionSet
-import app.gimcheck.core.SessionStatus
-import app.gimcheck.core.SessionTransition
-import app.gimcheck.core.SkipRest
-import app.gimcheck.core.Tick
 import app.gimcheck.core.formatDuration
 import app.gimcheck.core.formatNumber
 import app.gimcheck.core.historicalBestByExercise
+import app.gimcheck.core.restSecondsFor
 import app.gimcheck.core.sessionE1rm
 import app.gimcheck.core.sessionVolume
 import app.gimcheck.core.sessionVolumeByMuscle
+import app.gimcheck.core.supersetNextExercise
+import app.gimcheck.core.warmupRestSeconds
 import app.gimcheck.data.repository.ExerciseRepository
+import app.gimcheck.data.repository.RoutineRepository
 import app.gimcheck.data.repository.SessionRepository
 import app.gimcheck.data.repository.SettingsRepository
 import app.gimcheck.data.settings.AppSettings
+import java.time.Duration
+import java.time.Instant
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,27 +36,20 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.toJavaLocalDateTime
 import kotlinx.datetime.toKotlinLocalDateTime
-import java.time.Duration
-import java.time.Instant
-import kotlin.math.roundToInt
 
 /**
  * Gancho del **cronómetro de descanso** (`docs/especificacion.md` §4, GIM-22).
  *
- * La pantalla muestra la cuenta regresiva desde `rest_ends_at`, pero el servicio en
- * primer plano y la alarma exacta de respaldo viven fuera de la pantalla (paquete
- * `app.gimcheck.rest`, ADR 0004). El [EntrenarViewModel] sabe **cuándo** hay que
- * arrancar, cortar o dar por terminado un descanso —son los efectos de la máquina de
- * `:core`— y los publica acá; nunca decide el tiempo.
- *
- * Con [Noop] (el default) nadie escucha: el cronómetro vive dentro de la pantalla y
- * muere con ella. La pantalla real inyecta `AndroidRestGateway`.
+ * La pantalla muestra la cuenta regresiva desde el deadline, pero el servicio en primer
+ * plano y la alarma exacta de respaldo viven fuera de la pantalla (paquete
+ * `app.gimcheck.rest`, ADR 0004). El [EntrenarViewModel] sabe **cuándo** hay que arrancar,
+ * cortar o dar por terminado un descanso y los publica acá; nunca decide el tiempo.
  */
 interface RestGateway {
 
     /**
-     * Hay que (re)programar el cronómetro hasta [endsAt] —el `rest_ends_at` absoluto de
-     * `:core`— con un total de [seconds] (para el progreso de la notificación).
+     * Hay que (re)programar el cronómetro hasta [endsAt] con un total de [seconds] (para
+     * el progreso de la notificación).
      */
     fun onStartRest(seconds: Int, endsAt: Instant)
 
@@ -73,16 +67,16 @@ interface RestGateway {
     }
 }
 
-/** Fase de la pantalla: sin sesión, sesión viva o sesión terminada (GIM-24). */
+/** Fase de la pantalla: entrenando, terminado (resumen) o sin catálogo. */
 enum class EntrenarPhase { NO_SESSION, ACTIVE, FINISHED }
 
-/** Cuenta regresiva del descanso, ya en segundos ([remainingSeconds] desde el deadline). */
+/** Cuenta regresiva del descanso, ya en segundos (desde el deadline absoluto). */
 data class EntrenarRestUi(
     val remainingSeconds: Int,
     val totalSeconds: Int,
 )
 
-/** Una serie anotada de un ítem del bloque, lista para `SetRow`. */
+/** Una serie anotada, lista para `SetRow`. */
 data class EntrenarSetUi(
     val id: String,
     val number: Int,
@@ -91,19 +85,37 @@ data class EntrenarSetUi(
     val isWarmup: Boolean,
 )
 
-/** Las series anotadas de un ítem del bloque actual, en orden de ejecución. */
+/** Las series anotadas de un ejercicio, en orden de ejecución. */
 data class EntrenarSetsUi(
     val itemId: String,
     val exerciseName: String,
     val sets: List<EntrenarSetUi>,
 )
 
+/** Un ejercicio elegible en el selector del nombre (GIM-49). */
+data class EntrenarPickerItemUi(
+    val exerciseId: String,
+    val name: String,
+)
+
+/** Un día de una rutina con sus ejercicios distintos: agrupación del selector. */
+data class EntrenarPickerGroupUi(
+    val routineId: String,
+    val routineName: String,
+    val dayName: String,
+    val items: List<EntrenarPickerItemUi>,
+)
+
 /**
- * Un **PR del día**: la mejor serie del ejercicio que superó su máximo previo.
- *
- * @param setLabel `82,5 kg × 5`, ya formateado (coma decimal).
- * @param e1rmLabel e1RM de esa serie con la fórmula del ajuste (`e1rmFormula`).
+ * Estado del selector de ejercicio. [showingAll] distingue la lista corta (rutina activa)
+ * de la larga (todas las rutinas, la acción `+`).
  */
+data class EntrenarPickerUi(
+    val showingAll: Boolean,
+    val groups: List<EntrenarPickerGroupUi>,
+)
+
+/** Un PR del día: la mejor serie del ejercicio que superó su máximo previo. */
 data class EntrenarPrUi(
     val exerciseId: String,
     val exerciseName: String,
@@ -111,12 +123,7 @@ data class EntrenarPrUi(
     val e1rmLabel: String,
 )
 
-/**
- * Una barra de **volumen por músculo del día**: series efectivas de `:core`
- * (`sessionVolumeByMuscle`, la misma unidad que el análisis semanal).
- *
- * @param fraction valor sobre el músculo que más series recibió, para el `Meter`.
- */
+/** Una barra de volumen por músculo del día (`sessionVolumeByMuscle` de `:core`). */
 data class EntrenarMuscleUi(
     val muscleId: String,
     val name: String,
@@ -124,16 +131,7 @@ data class EntrenarMuscleUi(
     val fraction: Float,
 )
 
-/**
- * Resumen de **fin de sesión** (GIM-24): todo calculado con `:core` sobre las series que
- * quedaron guardadas, no con una segunda fórmula en la UI.
- *
- * @param durationLabel duración real (`started_at` → `ended_at`) en el formato del contrato.
- * @param volumeLabel volumen total del día en kg (`sessionVolume`).
- * @param setsLabel series de trabajo anotadas (sin calentamientos).
- * @param prs un PR por ejercicio, o vacío si el día no rompió nada.
- * @param muscles top 5 de series efectivas por músculo.
- */
+/** Resumen de fin de entrenamiento, calculado con `:core` sobre lo guardado. */
 data class EntrenarSummaryUi(
     val dayName: String,
     val durationLabel: String,
@@ -144,99 +142,84 @@ data class EntrenarSummaryUi(
 )
 
 /**
- * Todo lo que dibuja **Entrenar** (§6 fila 2, `docs/diseno.md` §8 #2).
+ * Todo lo que dibuja **Entrenar** después del cambio de modelo (GIM-49).
  *
- * Los números ya vienen formateados del ViewModel (coma decimal, `kg`), igual que en
- * [HoyUiState]: el composable compone, no calcula. [rest] es `null` cuando no hay
- * descanso vivo; el cronómetro sólo compara el deadline absoluto.
+ * La sesión como concepto desapareció de la UI: hay **un entrenamiento abierto** donde se
+ * cargan series del ejercicio elegido. El nombre del ejercicio es un botón que abre
+ * [picker]; la superserie se avisa con [supersetNextName] y salta una sola vez, sin
+ * rotación por rondas. Los números vienen formateados del ViewModel, igual que en [HoyUiState].
  */
 data class EntrenarUiState(
     val loading: Boolean = true,
     val phase: EntrenarPhase = EntrenarPhase.NO_SESSION,
     val sessionId: String = "",
-    val dayName: String = "",
-    /** `1` en el primer bloque del día; para "Bloque 1 de 4". */
-    val blockNumber: Int = 0,
-    val blockCount: Int = 0,
-    /** Nombres de los ítems del bloque unidos con ` + `; es el `SectionHeader` de abajo. */
-    val blockName: String = "",
-    /** Posición del ítem dentro del bloque (1..[supersetSize]); `0` si el bloque es de uno. */
-    val supersetPosition: Int = 0,
-    /** Ítems del bloque; `<= 1` = no es superserie y no se dibuja el indicador. */
-    val supersetSize: Int = 0,
+    /** Nombre de la rutina activa, o vacío si no hay plan. */
+    val routineName: String = "",
+    val exerciseId: String = "",
     val exerciseName: String = "",
-    /** Ronda actual, 1..[rounds]. */
-    val round: Int = 0,
-    val rounds: Int = 0,
+    val muscleName: String = "",
+    /** Siguiente ejercicio si el actual es el primero de una superserie (`null` si no). */
+    val supersetNextName: String? = null,
     val weightDraft: Double = 0.0,
     val repsDraft: Double = 0.0,
     /** Paso del peso: ajuste `weightStep` de §8 (2,5 kg por defecto). */
     val weightStep: Double = 2.5,
     val isWarmup: Boolean = false,
-    /** Series de trabajo anotadas (sin calentamientos) y planificadas del día. */
+    /** Series de trabajo anotadas en todo el entrenamiento (sin calentamientos). */
     val setsDone: Int = 0,
-    val setsTotal: Int = 0,
     val rest: EntrenarRestUi? = null,
     /** El descanso acaba de llegar a cero: aviso inline (la alerta real es GIM-23). */
     val restDone: Boolean = false,
-    /** Nombre del ítem al que saltó la superserie: "Seguí con …". */
+    /** Nombre del ejercicio al que saltó la superserie: "Seguí con …". */
     val jumpTo: String? = null,
     val canLogSet: Boolean = false,
+    /** Series del ejercicio actual (un solo grupo: la pantalla ya no muestra bloques). */
     val sets: List<EntrenarSetsUi> = emptyList(),
-    /** Serie en corrección (`null` = ninguna). Corregir **no** mueve el cursor (§4). */
+    /** Selector abierto por el nombre del ejercicio; `null` = no está abierto. */
+    val picker: EntrenarPickerUi? = null,
+    /** Serie en corrección (`null` = ninguna). Corregir **no** mueve el ejercicio. */
     val editingSetId: String? = null,
     val editingWeight: Double = 0.0,
     val editingReps: Double = 0.0,
     val confirmingDelete: Boolean = false,
     /** Ajuste `keepScreenOn` de §8: la pantalla mantiene el equipo despierto. */
     val keepScreenOn: Boolean = true,
-    /** Series de trabajo anotadas, para el fin de sesión mientras carga el resumen. */
+    /** Series de trabajo anotadas, para el fin de entrenamiento mientras carga el resumen. */
     val finishedSets: Int = 0,
-    /** Resumen de fin de sesión (GIM-24); `null` mientras se calcula. */
+    /** Resumen de fin de entrenamiento; `null` mientras se calcula. */
     val summary: EntrenarSummaryUi? = null,
 )
 
 /**
- * ViewModel de **Entrenar**: anotar series, saltar solo al siguiente de la superserie,
- * descanso al cerrar la ronda y corrección de series.
+ * ViewModel de **Entrenar** (GIM-49): un entrenamiento abierto, sin "empezar sesión".
  *
- * **Cero lógica de la máquina acá.** Cada acción arma un evento de `:core`
- * (`LogSet`, `SkipRest`, `ExtendRest`, `Tick`) y lo pasa por
- * [SessionRepository.dispatch], que llama a `reduce`. El estado que se dibuja es el que
- * devuelve la máquina (más lo que la base reconstruye en `observeGuided`): este archivo
- * no decide cuándo hay descanso ni a qué ítem se salta, sólo obedece los efectos
- * (`ShowNextInSuperset`, `StartRest`, `SessionFinished`, …).
+ * Reglas del dueño implementadas acá:
  *
- * **Dos fuentes, con motivo.** Las acciones se aplican con el estado que devuelve
- * `dispatch` (respuesta inmediata al toque) y además se observa `observeGuided` (el
- * cursor que otra corrutina movió: la rehidratación de `ON_START`, otra pantalla). El
- * caso terminal se retiene en [finishedState] porque al cerrar la sesión `observeActive`
- * deja de emitir y la vista de fin se perdería.
+ * 1. **Siempre hay un entrenamiento**: al abrir la pantalla, si no existe una sesión
+ *    `ACTIVE` se crea sola ([SessionRepository.openOrCreate]); salir no la cierra. La
+ *    sesión de la base sigue siendo la misma tabla de siempre (historial, volumen, PR),
+ *    lo que desapareció es el paso de "arrancar/terminar el día planificado".
+ * 2. **El ejercicio se elige**: el nombre es un botón con el selector de la rutina activa
+ *    y `+` para ver todas las rutinas. Elegir uno no depende del día ni del plan.
+ * 3. **La superserie es un salto puntual**: si el ejercicio es el primero de una cadena
+ *    (`supersetNext` en la rutina activa), anotar una serie pasa una vez al siguiente sin
+ *    descanso, como si se lo hubiera elegido; después descansa y se queda ahí. No hay
+ *    rotación por rondas.
+ * 4. **El descanso es el del ejercicio** (`restOverrideSeconds` del ítem o el del
+ *    catálogo) y se persiste en `app_setting` para sobrevivir a que se cierre la app; el
+ *    servicio y la alarma siguen siendo los de GIM-22.
  *
- * **Corregir y borrar** no son eventos de la máquina: son `UPDATE`/`DELETE` de
- * `session_set` (§4 "corregir una serie ya anotada no cambia el cursor"). Además se
- * reflejan en el estado en memoria para que un `LogSet` inmediatamente después no
- * reescriba la serie borrada (los ids son deterministas).
+ * La corrección y el borrado de series siguen siendo `UPDATE`/`DELETE` de `session_set`:
+ * no mueven el ejercicio actual.
  *
- * **Precarga (`autoFillLast`)**: al cambiar el ítem del cursor se usan las series de ese
- * ítem en la sesión; si no hay, la última serie de trabajo del ejercicio en el
- * histórico (sólo con `autoFillLast = true`); si tampoco, el peso por defecto o las reps
- * objetivo del ítem.
- *
- * **Fin de sesión (GIM-24)**: cuando la máquina emite `SessionFinished`, el repositorio ya
- * cerró la fila con `ended_at` y estado `FINISHED`. Acá se arma [EntrenarSummaryUi] leyendo
- * esa sesión de la base y pasándola por `:core` (`sessionVolume`, `sessionE1rm` contra el
- * histórico anterior, `sessionVolumeByMuscle`). No hay números propios: si el resumen dice
- * 1.240 kg, es lo que devuelve `sessionVolume` para las mismas series.
- *
- * **Abandonar** ([abandon]) dispatcha `AbandonSession`: la máquina no emite
- * `SessionFinished`, así que no hay resumen ni PRs; el repositorio deja la sesión
- * `ABANDONED` con sus series guardadas.
+ * **Fin**: `finish` cierra la sesión (`FINISHED`) y muestra el resumen calculado con
+ * `:core`; `abandon` la deja `ABANDONED` (no cuenta como entrenamiento) y sale.
  */
 class EntrenarViewModel internal constructor(
     private val sessions: SessionRepository,
     private val settings: SettingsRepository,
     private val exercises: ExerciseRepository,
+    private val routines: RoutineRepository,
     private val scope: CoroutineScope,
     private val now: () -> LocalDateTime = { java.time.LocalDateTime.now().toKotlinLocalDateTime() },
     private val nowInstant: () -> Instant = Instant::now,
@@ -247,6 +230,7 @@ class EntrenarViewModel internal constructor(
         sessions = container.sessions,
         settings = container.settings,
         exercises = container.exercises,
+        routines = container.routines,
         scope = scope,
     )
 
@@ -259,6 +243,7 @@ class EntrenarViewModel internal constructor(
         sessions = container.sessions,
         settings = container.settings,
         exercises = container.exercises,
+        routines = container.routines,
         scope = scope,
         restGateway = restGateway,
     )
@@ -270,56 +255,65 @@ class EntrenarViewModel internal constructor(
 
     private var observation: Job? = null
 
-    /** Serializa los `dispatch`: dos toques rápidos no pueden leer el mismo cursor. */
+    /** Serializa escrituras y lecturas: dos toques rápidos no pueden pisarse. */
     private val gate = Mutex()
 
-    /** Último estado de la máquina: el que se le pasa a `dispatch`. */
-    private var session: GuidedSession? = null
-
-    /** Estado terminal retenido: al cerrar la sesión, `observeGuided` deja de emitir. */
-    private var finishedState: GuidedSession? = null
-
-    /** Resumen de fin de sesión ya calculado (se arma una sola vez por sesión). */
-    private var summary: EntrenarSummaryUi? = null
-
-    /** Sesión a la que pertenece [summary]; si cambia la sesión viva, se descarta. */
-    private var summarySessionId: String? = null
-
+    private var session: Session? = null
+    private var catalog: List<Exercise> = emptyList()
+    private var routinesData: List<Routine> = emptyList()
+    private var activeRoutineId: String? = null
+    private var muscleNames: Map<String, String> = emptyMap()
     private var prefs: AppSettings = AppSettings.DEFAULT
 
-    /** Ítem para el que ya se precargaron los borradores (no se pisan al editar). */
-    private var draftItemId: String? = null
+    /** Ejercicio que se está cargando. Se persiste en `app_setting` al elegirlo. */
+    private var currentExerciseId: String? = null
+
+    /** Ejercicio para el que ya se precargaron los borradores (no se pisan al editar). */
+    private var draftExerciseId: String? = null
     private var draftWeight: Double? = null
     private var draftReps: Double? = null
     private var warmup: Boolean = false
+
+    private var restDeadline: Instant? = null
+    private var restTotal: Int = 0
+    private var restDone: Boolean = false
+    private var jumpTo: String? = null
 
     private var editingSetId: String? = null
     private var editingWeight: Double? = null
     private var editingReps: Double? = null
     private var confirmingDelete: Boolean = false
 
-    private var restDone: Boolean = false
-    private var jumpTo: String? = null
+    private var pickerOpen: Boolean = false
+    private var pickerAll: Boolean = false
 
-    /**
-     * Deadline que el gateway tiene programado ahora mismo (`null` = no hay nada
-     * corriendo). Sirve para no rearrancar el servicio en cada emisión de la base: la
-     * pantalla observa `observeGuided`, que emite cada vez que cambia cualquier serie.
-     */
-    private var gatewayDeadline: Instant? = null
+    /** El entrenamiento se terminó y se muestra el resumen: no se auto-crea otro. */
+    private var finished: Boolean = false
+
+    /** El entrenamiento se descartó: no se auto-crea otro hasta reabrir la pantalla. */
+    private var discarded: Boolean = false
+
+    private var summary: EntrenarSummaryUi? = null
+    private var creating: Boolean = false
 
     /** Empieza a observar repositorios. Idempotente: la pantalla la llama una vez. */
     fun start() {
         if (observation != null) return
         observation = scope.launch {
-            // `observeGuided` acá es sólo el aviso de que algo cambió: el estado se lee
-            // con `guidedNow()` **dentro del `gate`**, igual que los `dispatch`. Si se
-            // pintara el valor emitido, una emisión que arrancó antes de un `LogSet`
-            // podía publicarse después y retroceder el cursor (GIM-21).
-            combine(sessions.observeGuided(), settings.settings) { _, readPrefs -> readPrefs }
-                .collect { readPrefs ->
-                    gate.withLock { sync(sessions.guidedNow(), readPrefs) }
-                }
+            muscleNames = exercises.muscles().associate { it.id to it.name }
+            currentExerciseId = settings.trainingExercise()
+            restoreRest()
+            combine(
+                sessions.observeActive(),
+                routines.observeRoutines(),
+                exercises.observeExercises(),
+                settings.settings,
+                settings.activeRoutineId,
+            ) { active, allRoutines, allExercises, readPrefs, activeId ->
+                Snapshot(active, allRoutines, allExercises, readPrefs, activeId)
+            }.collect { snapshot ->
+                gate.withLock { sync(snapshot) }
+            }
         }
     }
 
@@ -330,30 +324,30 @@ class EntrenarViewModel internal constructor(
 
     // --- acciones de la pantalla -------------------------------------------------
 
-    /** Borrador del peso (paso `weightStep`). No escribe nada hasta [logSet]. */
+    /** Borrador del peso. No escribe nada hasta [logSet]. */
     fun setWeight(value: Double) {
         draftWeight = value
         publish()
     }
 
-    /** Borrador de las reps (paso 1). */
+    /** Borrador de las reps. */
     fun setReps(value: Double) {
         draftReps = value
         publish()
     }
 
-    /** Chip "Calentamiento": la serie se anota sin mover el cursor (§4). */
+    /** Chip "Calentamiento": la serie se anota sin mover el ejercicio. */
     fun toggleWarmup() {
         warmup = !warmup
         publish()
     }
 
-    /** "Serie hecha": `LogSet` y a obedecer los efectos (salto o descanso). */
+    /** "Serie hecha": guarda la serie y aplica el salto de superserie o el descanso. */
     fun logSet() {
         scope.launch { logSetNow() }
     }
 
-    /** "Saltar": corta el descanso y deja el cursor donde está. */
+    /** "Saltar": corta el descanso y deja el ejercicio actual. */
     fun skipRest() {
         scope.launch { skipRestNow() }
     }
@@ -363,16 +357,16 @@ class EntrenarViewModel internal constructor(
         scope.launch { extendRestNow(deltaSecs) }
     }
 
-    /** Pulso de la pantalla: la máquina decide si el descanso ya venció. */
+    /** Pulso de la pantalla: el ViewModel decide si el descanso ya venció. */
     fun tick() {
         scope.launch { tickNow() }
     }
 
     fun editSet(setId: String) {
-        val logged = session?.sets?.firstOrNull { it.set.id == setId } ?: return
+        val logged = session?.sets?.firstOrNull { it.id == setId } ?: return
         editingSetId = setId
-        editingWeight = logged.set.weightKg
-        editingReps = logged.set.reps.toDouble()
+        editingWeight = logged.weightKg
+        editingReps = logged.reps.toDouble()
         confirmingDelete = false
         publish()
     }
@@ -392,7 +386,7 @@ class EntrenarViewModel internal constructor(
         publish()
     }
 
-    /** Guarda la corrección de peso/reps. **No** dispatcha: el cursor no se mueve (§4). */
+    /** Guarda la corrección de peso/reps. **No** mueve el ejercicio actual. */
     fun saveCorrection() {
         scope.launch { saveCorrectionNow() }
     }
@@ -408,15 +402,60 @@ class EntrenarViewModel internal constructor(
         publish()
     }
 
-    /** Borra la serie en corrección (sólo los datos: el cursor no vuelve atrás). */
+    /** Borra la serie en corrección (sólo los datos). */
     fun deleteSet() {
         scope.launch { deleteSetNow(editingSetId) }
     }
 
+    /** Abre el selector de ejercicio con el nombre tocado. */
+    fun openPicker() {
+        if (pickerOpen) return
+        pickerOpen = true
+        pickerAll = false
+        publish()
+    }
+
+    fun closePicker() {
+        if (!pickerOpen) return
+        pickerOpen = false
+        publish()
+    }
+
+    /** `+ Ver todas las rutinas`: agranda el selector a todas. */
+    fun showAllRoutines() {
+        pickerAll = true
+        publish()
+    }
+
+    /** "Volver a mi rutina": vuelve a la lista corta. */
+    fun showActiveRoutine() {
+        pickerAll = false
+        publish()
+    }
+
     /**
-     * Abandona la sesión desde Entrenar: `AbandonSession` sin `SessionFinished`, así que no
-     * hay resumen ni PRs. Las series quedan guardadas en la base (la sesión queda
-     * `ABANDONED`) y [onDone] sale de la pantalla.
+     * Elige el ejercicio actual desde el selector. No exige que esté en el día: el
+     * entrenamiento es libre y el ejercicio puede venir de cualquier rutina.
+     */
+    fun pickExercise(exerciseId: String) {
+        scope.launch {
+            gate.withLock { useExercise(exerciseId) }
+            pickerOpen = false
+            publish()
+        }
+    }
+
+    /** Termina el entrenamiento: cierra la sesión y muestra el resumen. */
+    fun finish(onDone: () -> Unit = {}) {
+        scope.launch {
+            finishNow()
+            onDone()
+        }
+    }
+
+    /**
+     * Descarta el entrenamiento desde Entrenar: la sesión queda `ABANDONED` con sus series
+     * y no hay resumen. [onDone] sale de la pantalla.
      */
     fun abandon(onDone: () -> Unit = {}) {
         scope.launch {
@@ -428,72 +467,87 @@ class EntrenarViewModel internal constructor(
     // --- implementación (suspend: los usan los tests sin esperar corrutinas) ------
 
     internal suspend fun logSetNow() {
-        // La sesión ya cerró: un toque tardío no puede finalizarla dos veces (§4: los
-        // eventos fuera de estado devuelven el mismo estado y `persistGuided` no escribe).
-        if (finishedState != null) return
-        val guided = session ?: return
-        val item = guided.currentItem ?: return
+        if (finished || discarded) return
+        val active = session ?: return
+        val exerciseId = currentExerciseId ?: return
+        val exercise = catalog.firstOrNull { it.id == exerciseId } ?: return
         val reps = (draftReps ?: 0.0).roundToInt()
         if (reps <= 0) return
-        val at = now()
-        val event = LogSet(
+
+        val isWarmup = warmup
+        val set = SessionSet(
+            id = "",
+            exerciseId = exerciseId,
             weightKg = draftWeight ?: 0.0,
             reps = reps,
-            isWarmup = warmup,
-            at = at,
-            now = nowInstant(),
+            completedAt = now(),
+            isWarmup = isWarmup,
         )
-        val transition = gate.withLock { sessions.dispatch(guided, event, nowInstant()) }
-        apply(transition)
-        if (event.isWarmup) {
-            // El calentamiento no mueve el cursor: el chip vuelve a apagado.
-            warmup = false
-        } else {
+        // Toda la serie (dato, salto de superserie y descanso) va bajo el mismo `gate`:
+        // una emisión de la base en el medio no puede pintar media operación.
+        gate.withLock {
+            sessions.recordSet(
+                sessionId = active.id,
+                set = set,
+                dayItemId = itemFor(exerciseId)?.id,
+                roundIndex = 0,
+                setIndex = active.sets.count { it.exerciseId == exerciseId },
+            )
+            session = sessions.session(active.id) ?: active
             restDone = false
-            jumpTo = transition.state.currentItem
-                ?.takeIf { SessionEffect.ShowNextInSuperset in transition.effects }
-                ?.exercise?.name
+            if (isWarmup) {
+                warmup = false
+                jumpTo = null
+                startRest(warmupRestSeconds(restSecondsFor(activeRoutine(), exercise)))
+            } else {
+                val next = activeRoutine()?.let { supersetNextExercise(it, exerciseId) }
+                if (next != null) {
+                    // Superserie: salto puntual al siguiente ejercicio, sin descanso.
+                    clearRest()
+                    useExercise(next.id, preload = true)
+                    jumpTo = next.name
+                } else {
+                    jumpTo = null
+                    startRest(restSecondsFor(activeRoutine(), exercise))
+                }
+            }
         }
-        // La precarga del próximo ítem la dispara la reemisión de `observeGuided`.
         publish()
-        if (item.id != transition.state.currentItem?.id) {
-            preloadIfNeeded(transition.state)
-            publish()
-        }
-        // Última serie del último bloque: el repositorio ya cerró la fila con `ended_at`.
-        // El resumen se calcula sobre lo guardado y se publica cuando está.
-        if (finishedState != null) loadSummary()
     }
 
     internal suspend fun skipRestNow() {
-        val guided = session ?: return
-        val transition = gate.withLock { sessions.dispatch(guided, SkipRest, nowInstant()) }
-        apply(transition)
-        jumpTo = null
+        if (restDeadline == null) return
+        clearRest()
+        restDone = false
         publish()
     }
 
     internal suspend fun extendRestNow(deltaSecs: Int) {
-        val guided = session ?: return
-        val transition = gate.withLock {
-            sessions.dispatch(guided, ExtendRest(deltaSecs), nowInstant())
+        val deadline = restDeadline ?: return
+        val seconds = (restTotal + deltaSecs).coerceAtLeast(0)
+        if (seconds <= 0) {
+            clearRest()
+            publish()
+            return
         }
-        apply(transition)
+        val end = deadline.plusSeconds(deltaSecs.toLong())
+        restDeadline = end
+        restTotal = seconds
+        settings.setTrainingRest(end.toEpochMilli(), seconds)
+        restGateway.onStartRest(seconds, end)
         publish()
     }
 
     internal suspend fun tickNow() {
-        val guided = session ?: return
-        if (guided.restEndsAt == null) return
-        val transition = gate.withLock { sessions.dispatch(guided, Tick(nowInstant()), nowInstant()) }
-        if (transition.effects.isNotEmpty()) apply(transition)
+        val deadline = restDeadline ?: return
+        if (nowInstant().isBefore(deadline)) return
+        clearRest(cancelGateway = false)
+        restGateway.onRestFinished()
+        restDone = true
         publish()
     }
 
-    /**
-     * Guarda la corrección en el `gate`: así la reemisión de la base que dispara el
-     * `UPDATE` no pinta la serie corregida antes de que se limpie la edición.
-     */
+    /** Guarda la corrección en el `gate`: la emisión de la base no pisa la edición. */
     internal suspend fun saveCorrectionNow() = gate.withLock {
         val id = editingSetId ?: return@withLock
         val weight = editingWeight ?: return@withLock
@@ -508,36 +562,348 @@ class EntrenarViewModel internal constructor(
     internal suspend fun deleteSetNow(setId: String?) = gate.withLock {
         val id = setId ?: return@withLock
         sessions.deleteSet(id)
-        val current = session
-        session = current?.copy(sets = current.sets.filterNot { it.set.id == id })
+        session = session?.let { current -> current.copy(sets = current.sets.filterNot { it.id == id }) }
         clearEditing()
         publish()
     }
 
+    /** Cierra la sesión y arma el resumen con `:core`. */
+    internal suspend fun finishNow() = gate.withLock {
+        if (finished) return@withLock
+        val active = session ?: return@withLock
+        finished = true
+        clearRest()
+        sessions.finish(active.id, now())
+        session = sessions.session(active.id) ?: active
+        summary = null
+        loadSummary()
+        publish()
+    }
+
     internal suspend fun abandonNow() = gate.withLock {
-        val guided = session ?: return@withLock
-        val transition = sessions.dispatch(guided, AbandonSession, nowInstant())
-        apply(transition)
+        val active = session ?: return@withLock
+        discarded = true
+        finished = false
+        clearRest()
+        sessions.abandon(active.id, now())
+        session = null
         summary = null
         publish()
     }
 
+    // --- estado ------------------------------------------------------------------
+
+    private data class Snapshot(
+        val session: Session?,
+        val routines: List<Routine>,
+        val exercises: List<Exercise>,
+        val prefs: AppSettings,
+        val activeRoutineId: String?,
+    )
+
+    private suspend fun sync(snapshot: Snapshot) {
+        prefs = snapshot.prefs
+        routinesData = snapshot.routines
+        catalog = snapshot.exercises
+        activeRoutineId = snapshot.activeRoutineId
+        // El seed carga en segundo plano: si la pantalla abrió antes, los nombres de
+        // músculo llegan vacíos. Se completan en la primera emisión con catálogo.
+        if (muscleNames.isEmpty() && catalog.isNotEmpty()) {
+            muscleNames = exercises.muscles().associate { it.id to it.name }
+        }
+
+        if (finished || discarded) {
+            publish()
+            return
+        }
+
+        var active = snapshot.session
+        // Un entrenamiento que quedó abierto de otro día se cierra solo: el dueño pidió
+        // una única cosa donde va cargando ejercicios, pero esa cosa es **del día**. Sin
+        // esto, olvidarse de "Terminar" hacía que el entrenamiento de ayer y el de hoy
+        // fueran la misma sesión (duración y volumen mezclados).
+        if (active != null && active.startedAt.date != now().date) {
+            val last = active.sets.maxByOrNull { it.completedAt }
+            if (last == null) {
+                sessions.abandon(active.id, active.startedAt)
+            } else {
+                sessions.finish(active.id, last.completedAt)
+            }
+            active = null
+        }
+        if (active == null && !creating) {
+            creating = true
+            val id = sessions.openOrCreate(
+                routineId = activeRoutine()?.id,
+                startedAt = now(),
+            )
+            active = sessions.session(id)
+            creating = false
+        }
+        if (active == null) {
+            session = null
+            publish()
+            return
+        }
+        session = active
+        ensureExercise(active)
+        publish()
+    }
+
+    /**
+     * Resuelve el ejercicio actual: el elegido si sigue existiendo, si no la última serie
+     * del entrenamiento, si no el primero de la rutina activa y si no el primero del
+     * catálogo. Al cambiarlo precarga peso/reps.
+     */
+    private suspend fun ensureExercise(active: Session) {
+        val valid = catalog.mapTo(HashSet()) { it.id }
+        val candidate = currentExerciseId?.takeIf { it in valid }
+            ?: active.sets.lastOrNull()?.exerciseId?.takeIf { it in valid }
+            ?: activeRoutine()?.days?.firstNotNullOfOrNull { day ->
+                day.items.firstOrNull()?.exerciseId?.takeIf { it in valid }
+            }
+            ?: catalog.firstOrNull { !it.archived }?.id
+        if (candidate == null) {
+            draftExerciseId = null
+            publish()
+            return
+        }
+        if (candidate != currentExerciseId) {
+            currentExerciseId = candidate
+            preloadDrafts(candidate, force = true)
+        } else if (draftExerciseId == null) {
+            preloadDrafts(candidate, force = true)
+        }
+    }
+
+    /**
+     * Precarga peso y reps del ejercicio: la última serie de ese ejercicio en este
+     * entrenamiento, o el histórico si `autoFillLast`, o el objetivo del ítem, o los
+     * defaults. [force] se usa al cambiar de ejercicio; al editar los borradores no se
+     * pisan porque [draftExerciseId] ya coincide.
+     */
+    private suspend fun preloadDrafts(exerciseId: String, force: Boolean = false) {
+        if (!force && draftExerciseId == exerciseId) return
+        val exercise = catalog.firstOrNull { it.id == exerciseId }
+        if (exercise == null) {
+            draftExerciseId = null
+            return
+        }
+        draftExerciseId = exerciseId
+        warmup = false
+        clearEditing()
+        val own = session?.sets?.lastOrNull { it.exerciseId == exerciseId && !it.isWarmup }
+        val history = if (own == null && prefs.autoFillLast) sessions.lastWorkingSet(exerciseId) else null
+        val source = own ?: history
+        draftWeight = source?.weightKg ?: defaultWeight(exercise)
+        draftReps = source?.reps?.toDouble()
+            ?: itemFor(exerciseId)?.targetRepsMin?.toDouble()
+            ?: DEFAULT_REPS
+    }
+
+    /** Cambia el ejercicio actual y lo recuerda para la próxima apertura. */
+    private suspend fun useExercise(exerciseId: String, preload: Boolean = true) {
+        if (catalog.none { it.id == exerciseId }) return
+        currentExerciseId = exerciseId
+        settings.setTrainingExercise(exerciseId)
+        if (preload) preloadDrafts(exerciseId, force = true)
+    }
+
+    private suspend fun startRest(seconds: Int) {
+        if (seconds <= 0) {
+            clearRest()
+            return
+        }
+        val deadline = nowInstant().plusSeconds(seconds.toLong())
+        restDeadline = deadline
+        restTotal = seconds
+        settings.setTrainingRest(deadline.toEpochMilli(), seconds)
+        restGateway.onStartRest(seconds, deadline)
+    }
+
+    private suspend fun clearRest(cancelGateway: Boolean = true) {
+        val hadRest = restDeadline != null
+        restDeadline = null
+        restTotal = 0
+        if (hadRest) settings.setTrainingRest(null, null)
+        if (cancelGateway && hadRest) restGateway.onCancelRest()
+    }
+
+    /** Recupera el descanso persistido al abrir la app (GIM-49/GIM-22). */
+    private suspend fun restoreRest() {
+        val (endsAt, seconds) = settings.trainingRest()
+        if (endsAt == null || seconds == null || seconds <= 0) return
+        val deadline = Instant.ofEpochMilli(endsAt)
+        if (!deadline.isAfter(nowInstant())) {
+            settings.setTrainingRest(null, null)
+            return
+        }
+        restDeadline = deadline
+        restTotal = seconds
+        restGateway.onStartRest(remainingSeconds(deadline), deadline)
+    }
+
+    private fun publish() {
+        if (finished) {
+            _state.value = _state.value.copy(
+                loading = false,
+                phase = EntrenarPhase.FINISHED,
+                rest = null,
+                restDone = false,
+                jumpTo = null,
+                canLogSet = false,
+                picker = null,
+                finishedSets = session?.sets?.count { !it.isWarmup } ?: 0,
+                keepScreenOn = prefs.keepScreenOn,
+                summary = summary,
+            )
+            return
+        }
+
+        val active = session
+        val exercise = catalog.firstOrNull { it.id == currentExerciseId }
+        if (active == null || exercise == null) {
+            _state.value = EntrenarUiState(
+                loading = false,
+                phase = EntrenarPhase.NO_SESSION,
+                keepScreenOn = prefs.keepScreenOn,
+            )
+            return
+        }
+
+        val routine = activeRoutine()
+        val logged = active.sets.filter { it.exerciseId == exercise.id }
+        _state.value = EntrenarUiState(
+            loading = false,
+            phase = EntrenarPhase.ACTIVE,
+            sessionId = active.id,
+            routineName = routine?.name.orEmpty(),
+            exerciseId = exercise.id,
+            exerciseName = exercise.name,
+            muscleName = muscleNames[exercise.primaryMuscleId].orEmpty(),
+            supersetNextName = routine?.let { supersetNextExercise(it, exercise.id)?.name },
+            weightDraft = draftWeight ?: defaultWeight(exercise),
+            repsDraft = draftReps ?: DEFAULT_REPS,
+            weightStep = prefs.weightStep.takeIf { it > 0.0 } ?: AppSettings.DEFAULT.weightStep,
+            isWarmup = warmup,
+            setsDone = active.sets.count { !it.isWarmup },
+            rest = restUi(),
+            restDone = restDone,
+            jumpTo = jumpTo,
+            canLogSet = true,
+            sets = if (logged.isEmpty()) {
+                emptyList()
+            } else {
+                listOf(
+                    EntrenarSetsUi(
+                        itemId = exercise.id,
+                        exerciseName = exercise.name,
+                        sets = logged.mapIndexed { index, set -> set.toUi(exercise, index + 1) },
+                    ),
+                )
+            },
+            picker = if (pickerOpen) pickerUi() else null,
+            editingSetId = editingSetId,
+            editingWeight = editingWeight ?: 0.0,
+            editingReps = editingReps ?: 0.0,
+            confirmingDelete = confirmingDelete,
+            keepScreenOn = prefs.keepScreenOn,
+        )
+    }
+
+    private fun pickerUi(): EntrenarPickerUi {
+        val source = if (pickerAll) routinesData else listOfNotNull(activeRoutine())
+        val groups = source.flatMap { routine ->
+            routine.days.mapNotNull { day ->
+                val items = day.items
+                    .map { it.exerciseId }
+                    .distinct()
+                    .mapNotNull { id ->
+                        catalog.firstOrNull { it.id == id }?.let { exercise ->
+                            EntrenarPickerItemUi(exerciseId = exercise.id, name = exercise.name)
+                        }
+                    }
+                if (items.isEmpty()) {
+                    null
+                } else {
+                    EntrenarPickerGroupUi(
+                        routineId = routine.id,
+                        routineName = routine.name,
+                        dayName = day.name,
+                        items = items,
+                    )
+                }
+            }
+        }
+        return EntrenarPickerUi(showingAll = pickerAll, groups = groups)
+    }
+
+    private fun restUi(): EntrenarRestUi? {
+        val end = restDeadline ?: return null
+        val remaining = remainingSeconds(end)
+        return EntrenarRestUi(
+            remainingSeconds = remaining,
+            totalSeconds = restTotal.coerceAtLeast(remaining),
+        )
+    }
+
+    private fun remainingSeconds(deadline: Instant): Int {
+        val millis = Duration.between(nowInstant(), deadline).toMillis()
+        return ((millis + 999) / 1000).toInt().coerceAtLeast(0)
+    }
+
+    private fun activeRoutine(): Routine? =
+        routinesData.firstOrNull { it.id == activeRoutineId && !it.archived }
+            ?: routinesData.firstOrNull { !it.archived }
+            ?: routinesData.firstOrNull()
+
+    private fun itemFor(exerciseId: String): DayItem? =
+        activeRoutine()?.days
+            ?.asSequence()
+            ?.flatMap { it.items.asSequence() }
+            ?.firstOrNull { it.exerciseId == exerciseId }
+
+    private fun defaultWeight(exercise: Exercise): Double =
+        if (exercise.loadType == LoadType.BODYWEIGHT) 0.0 else DEFAULT_WEIGHT_KG
+
+    private fun SessionSet.toUi(exercise: Exercise, number: Int): EntrenarSetUi {
+        val bodyweight = exercise.loadType == LoadType.BODYWEIGHT && weightKg <= 0.0
+        return EntrenarSetUi(
+            id = id,
+            number = number,
+            weightLabel = if (bodyweight) BODYWEIGHT_LABEL else formatNumber(weightKg) + " kg",
+            repsLabel = reps.toString(),
+            isWarmup = isWarmup,
+        )
+    }
+
+    private fun clearEditing() {
+        editingSetId = null
+        editingWeight = null
+        editingReps = null
+        confirmingDelete = false
+    }
+
+    private fun Session.replaceSet(id: String, weightKg: Double, reps: Int): Session =
+        copy(
+            sets = sets.map { set ->
+                if (set.id == id) set.copy(weightKg = weightKg, reps = reps) else set
+            },
+        )
+
     /**
      * Arma [EntrenarSummaryUi] desde la sesión **persistida** y `:core`.
      *
-     * Todo sale de las mismas series que guardó la máquina: volumen (`sessionVolume` con el
-     * `loadType` del catálogo y el peso corporal de la sesión), series de trabajo, PRs
-     * (`sessionE1rm` contra el histórico terminado **anterior**, un PR por ejercicio) y
-     * series efectivas por músculo (`sessionVolumeByMuscle`, top [MUSCLES_TOP]).
+     * Volumen, series de trabajo, PRs (contra el histórico terminado anterior) y series
+     * efectivas por músculo salen de las mismas funciones que el resto del producto. El
+     * nombre del día es el de la rutina activa (el entrenamiento ya no pertenece a un día).
      */
     private suspend fun loadSummary() {
-        val finished = finishedState ?: return
         if (summary != null) return
-        val stored = sessions.session(finished.sessionId) ?: return
+        val stored = session?.let { sessions.session(it.id) } ?: return
         val core = prefs.toCoreSettings()
-        val catalog = exercises.all()
-        val exerciseById = catalog.associateBy { it.id }
-        val muscleNames = exercises.muscles().associate { it.id to it.name }
+        val fullCatalog = exercises.all()
+        val exerciseById = fullCatalog.associateBy { it.id }
 
         val priorBest = historicalBestByExercise(
             sessions.finishedHistory().filter { it.id != stored.id },
@@ -557,7 +923,7 @@ class EntrenarViewModel internal constructor(
                 )
             }
 
-        val byMuscle = sessionVolumeByMuscle(listOf(stored), catalog, core).values
+        val byMuscle = sessionVolumeByMuscle(listOf(stored), fullCatalog, core).values
             .sortedByDescending { it.total(core.includeIndirect) }
             .take(MUSCLES_TOP)
         val top = byMuscle.firstOrNull()?.total(core.includeIndirect)?.takeIf { it > 0.0 } ?: 1.0
@@ -576,256 +942,15 @@ class EntrenarViewModel internal constructor(
         } ?: 0L
 
         summary = EntrenarSummaryUi(
-            dayName = finished.day.name,
+            dayName = activeRoutine()?.name.orEmpty(),
             durationLabel = formatDuration(durationSeconds),
-            volumeLabel = formatNumber(sessionVolume(stored, catalog, core)) + " kg",
+            volumeLabel = formatNumber(sessionVolume(stored, fullCatalog, core)) + " kg",
             setsLabel = stored.sets.count { !it.isWarmup }.toString(),
             prs = prs,
             muscles = muscles,
         )
-        summarySessionId = stored.id
         publish()
     }
-
-    // --- proyección a la UI ------------------------------------------------------
-
-    /**
-     * Aplica lo que emitió la base. No se toca después de terminar: la vista de fin se
-     * queda hasta que la pantalla se va (GIM-24 la reemplaza por el resumen real).
-     */
-    private suspend fun sync(guided: GuidedSession?, readPrefs: AppSettings) {
-        prefs = readPrefs
-        if (finishedState != null) {
-            publish()
-            return
-        }
-        if (guided != null && summarySessionId != null && guided.sessionId != summarySessionId) {
-            // Otra sesión (p. ej. se descartó la anterior y se arrancó de nuevo): el
-            // resumen de la anterior no se puede reusar.
-            summary = null
-            summarySessionId = null
-        }
-        session = guided
-        // El cronómetro de afuera sigue al `rest_ends_at` de la base, no a la pantalla:
-        // un descanso que venía corriendo con la app cerrada se retoma en el mismo
-        // deadline (y si ya venció, `Restore` lo dio por terminado y se cancela).
-        updateRestGateway(guided)
-        if (guided == null) {
-            draftItemId = null
-            summary = null
-            summarySessionId = null
-            clearEditing()
-            _state.value = EntrenarUiState(
-                loading = false,
-                phase = EntrenarPhase.NO_SESSION,
-                keepScreenOn = readPrefs.keepScreenOn,
-            )
-            return
-        }
-        preloadIfNeeded(guided)
-        publish()
-    }
-
-    private suspend fun preloadIfNeeded(guided: GuidedSession) {
-        val item = guided.currentItem ?: run {
-            draftItemId = null
-            return
-        }
-        if (draftItemId == item.id) return
-        draftItemId = item.id
-        warmup = false
-        clearEditing()
-        val own = guided.setsFor(item.id).lastOrNull { !it.isWarmup }
-        val history = if (own == null && prefs.autoFillLast) {
-            sessions.lastWorkingSet(item.exerciseId)
-        } else {
-            null
-        }
-        val source: SessionSet? = own ?: history
-        draftWeight = source?.weightKg ?: defaultWeight(item)
-        draftReps = source?.reps?.toDouble() ?: item.targetRepsMin?.toDouble() ?: DEFAULT_REPS
-    }
-
-    private fun defaultWeight(item: DayItem): Double =
-        if (item.exercise.loadType == LoadType.BODYWEIGHT) 0.0 else DEFAULT_WEIGHT_KG
-
-    private fun apply(transition: SessionTransition) {
-        session = transition.state
-        transition.effects.forEach { effect ->
-            when (effect) {
-                // El cronómetro de afuera se sincroniza al final, con el estado nuevo
-                // (`updateRestGateway`): así el servicio y la alarma usan el mismo
-                // `restEndsAt` que va a persistir la máquina.
-                is SessionEffect.StartRest -> Unit
-                SessionEffect.CancelRest -> Unit
-                SessionEffect.RestFinished -> {
-                    // El gateway para lo suyo en `onRestFinished`; se limpia acá para
-                    // que `updateRestGateway` no lo pare dos veces.
-                    gatewayDeadline = null
-                    restGateway.onRestFinished()
-                    restDone = true
-                }
-                SessionEffect.ShowRestDone -> restDone = true
-                SessionEffect.SessionFinished -> finishedState = transition.state
-                SessionEffect.PersistState,
-                SessionEffect.ShowNextInSuperset,
-                SessionEffect.ShowNextExercise -> Unit
-            }
-        }
-        updateRestGateway(transition.state)
-        if (transition.state.status == SessionStatus.FINISHED) finishedState = transition.state
-    }
-
-    /**
-     * Deja el servicio en primer plano y la alarma exacta apuntando a [guided]`.restEndsAt`
-     * (o cancela los dos si no hay descanso). Idempotente por deadline: la base se emite
-     * varias veces por serie anotada y no hace falta re-arrancar el servicio cada vez.
-     *
-     * Si el deadline ya venció con la app cerrada no se arranca un cronómetro en el
-     * pasado: `Restore`/`Tick` ya cerraron el descanso y lo que corresponde es cancelar.
-     */
-    private fun updateRestGateway(guided: GuidedSession?) {
-        val endsAt = guided?.restEndsAt
-        if (endsAt == null || !endsAt.isAfter(nowInstant())) {
-            if (gatewayDeadline != null) {
-                gatewayDeadline = null
-                restGateway.onCancelRest()
-            }
-            return
-        }
-        if (endsAt == gatewayDeadline) return
-        gatewayDeadline = endsAt
-        val remaining = ((Duration.between(nowInstant(), endsAt).toMillis() + 999) / 1000)
-            .toInt()
-            .coerceAtLeast(1)
-        val total = guided.restSeconds ?: remaining
-        restGateway.onStartRest(maxOf(total, remaining), endsAt)
-    }
-
-    private fun publish() {
-        val finished = finishedState
-        if (finished != null) {
-            _state.value = _state.value.copy(
-                loading = false,
-                phase = EntrenarPhase.FINISHED,
-                rest = null,
-                restDone = false,
-                jumpTo = null,
-                canLogSet = false,
-                finishedSets = finished.sets.count { !it.set.isWarmup },
-                keepScreenOn = prefs.keepScreenOn,
-                summary = summary,
-            )
-            return
-        }
-        val guided = session
-        if (guided == null || guided.status == SessionStatus.ABANDONED) {
-            // Abandonada: no hay resumen ni PRs; la pantalla vuelve a "sin sesión" y la
-            // navegación la saca a Hoy.
-            summary = null
-            summarySessionId = null
-            _state.value = EntrenarUiState(
-                loading = false,
-                phase = EntrenarPhase.NO_SESSION,
-                keepScreenOn = prefs.keepScreenOn,
-            )
-            return
-        }
-
-        val block = guided.currentBlock
-        val item = guided.currentItem
-        val totalSets = guided.day.items.sumOf { it.sets }
-        val plannedRounds = guided.rounds
-
-        _state.value = EntrenarUiState(
-            loading = false,
-            phase = EntrenarPhase.ACTIVE,
-            sessionId = guided.sessionId,
-            dayName = guided.day.name,
-            blockNumber = guided.blockIndex + 1,
-            blockCount = guided.blocks.size,
-            blockName = block.joinToString(" + ") { it.exercise.name },
-            supersetPosition = if (block.size > 1) guided.itemIndex + 1 else 0,
-            supersetSize = if (block.size > 1) block.size else 0,
-            exerciseName = item?.exercise?.name.orEmpty(),
-            round = (guided.roundIndex + 1).coerceAtMost(plannedRounds.coerceAtLeast(1)),
-            rounds = plannedRounds,
-            weightDraft = draftWeight ?: defaultWeightOrZero(item),
-            repsDraft = draftReps ?: DEFAULT_REPS,
-            weightStep = prefs.weightStep.takeIf { it > 0.0 } ?: AppSettings.DEFAULT.weightStep,
-            isWarmup = warmup,
-            setsDone = guided.sets.count { !it.set.isWarmup },
-            setsTotal = totalSets,
-            rest = restUi(guided),
-            restDone = restDone,
-            jumpTo = jumpTo,
-            canLogSet = guided.isActive && item != null,
-            sets = setsUi(guided, block),
-            editingSetId = editingSetId,
-            editingWeight = editingWeight ?: 0.0,
-            editingReps = editingReps ?: 0.0,
-            confirmingDelete = confirmingDelete,
-            keepScreenOn = prefs.keepScreenOn,
-            finishedSets = 0,
-        )
-    }
-
-    private fun defaultWeightOrZero(item: DayItem?): Double =
-        item?.let { defaultWeight(it) } ?: DEFAULT_WEIGHT_KG
-
-    /** Cuenta regresiva desde `rest_ends_at` (deadline absoluto, no un contador). */
-    private fun restUi(guided: GuidedSession): EntrenarRestUi? {
-        val end = guided.restEndsAt ?: return null
-        val millis = Duration.between(nowInstant(), end).toMillis()
-        val remaining = ((millis + 999) / 1000).toInt().coerceAtLeast(0)
-        val total = guided.restSeconds ?: remaining
-        return EntrenarRestUi(
-            remainingSeconds = remaining,
-            totalSeconds = total.coerceAtLeast(remaining),
-        )
-    }
-
-    private fun setsUi(guided: GuidedSession, block: List<DayItem>): List<EntrenarSetsUi> =
-        block.mapNotNull { blockItem ->
-            val logged = guided.sets.filter { it.itemId == blockItem.id }
-            if (logged.isEmpty()) return@mapNotNull null
-            EntrenarSetsUi(
-                itemId = blockItem.id,
-                exerciseName = blockItem.exercise.name,
-                sets = logged.mapIndexed { position, entry ->
-                    entry.set.toUi(blockItem, position + 1)
-                },
-            )
-        }
-
-    private fun SessionSet.toUi(item: DayItem, number: Int): EntrenarSetUi {
-        val bodyweight = item.exercise.loadType == LoadType.BODYWEIGHT && weightKg <= 0.0
-        return EntrenarSetUi(
-            id = id,
-            number = number,
-            weightLabel = if (bodyweight) BODYWEIGHT_LABEL else formatNumber(weightKg) + " kg",
-            repsLabel = reps.toString(),
-            isWarmup = isWarmup,
-        )
-    }
-
-    private fun clearEditing() {
-        editingSetId = null
-        editingWeight = null
-        editingReps = null
-        confirmingDelete = false
-    }
-
-    private fun GuidedSession.replaceSet(id: String, weightKg: Double, reps: Int): GuidedSession =
-        copy(
-            sets = sets.map { logged ->
-                if (logged.set.id == id) {
-                    logged.copy(set = logged.set.copy(weightKg = weightKg, reps = reps))
-                } else {
-                    logged
-                }
-            },
-        )
 
     companion object {
         /** Punto de partida de los steppers cuando no hay histórico ni reps objetivo. */
@@ -837,7 +962,7 @@ class EntrenarViewModel internal constructor(
         /** Etiqueta del peso en un ejercicio de peso corporal sin lastre. */
         const val BODYWEIGHT_LABEL: String = "corporal"
 
-        /** Músculos que muestra el resumen: el top 5 del día (GIM-24). */
+        /** Músculos que muestra el resumen: el top 5 del entrenamiento. */
         const val MUSCLES_TOP: Int = 5
     }
 }

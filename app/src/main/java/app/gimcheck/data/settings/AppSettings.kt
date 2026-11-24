@@ -114,6 +114,21 @@ object SettingKeys {
     const val THEME = "theme"
     const val KEEP_SCREEN_ON = "keepScreenOn"
 
+    /*
+     * Estado del entrenamiento libre (GIM-49), fuera de [AppSettings] porque no es una
+     * preferencia: es el cursor de un entrenamiento en curso. Vive en la misma tabla
+     * key/value para no migrar `session_state` (que es del modelo guiado anterior).
+     */
+
+    /** Id del ejercicio que se está cargando en Entrenar. */
+    const val TRAINING_EXERCISE = "training.exercise"
+
+    /** Deadline absoluto del descanso (epoch millis), para que sobreviva al cierre de la app. */
+    const val TRAINING_REST_ENDS_AT = "training.restEndsAt"
+
+    /** Duración vigente del descanso: la que muestran `−15 s`/`+15 s` y la notificación. */
+    const val TRAINING_REST_SECONDS = "training.restSeconds"
+
     /**
      * Plan activo (GIM-16). No es un ajuste de §8: es el `curPlan` que la web guarda en
      * `localStorage`, y va como fila propia de `app_setting` para no migrar el esquema
