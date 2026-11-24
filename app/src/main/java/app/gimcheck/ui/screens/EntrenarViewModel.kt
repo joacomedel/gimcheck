@@ -439,7 +439,14 @@ class EntrenarViewModel internal constructor(
      */
     fun pickExercise(exerciseId: String) {
         scope.launch {
-            gate.withLock { useExercise(exerciseId) }
+            gate.withLock {
+                useExercise(exerciseId)
+                // Elegir a mano corta el descanso que estaba corriendo: el usuario ya
+                // decidió con qué sigue.
+                clearRest()
+                restDone = false
+                jumpTo = null
+            }
             pickerOpen = false
             publish()
         }

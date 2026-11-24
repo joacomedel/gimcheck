@@ -314,7 +314,7 @@ class EntrenarViewModelTest {
         val previous = viewModel.state.value.sessionId
         viewModel.stop()
 
-        advance(24 * 60 * 60)
+        advance(24L * 60 * 60)
         startViewModel()
 
         val state = awaitState { it.phase == EntrenarPhase.ACTIVE && it.sessionId != previous }

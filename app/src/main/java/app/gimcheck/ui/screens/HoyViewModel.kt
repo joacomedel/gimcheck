@@ -231,8 +231,11 @@ class HoyViewModel internal constructor(
         scope.launch { onResult(startSessionNow()) }
     }
 
-    internal suspend fun startSessionNow(): Boolean =
-        _state.value.hasRoutine || if (selectedDayId != null) routines.day(selectedDayId) != null else false
+    internal suspend fun startSessionNow(): Boolean {
+        if (_state.value.hasRoutine) return true
+        val dayId = selectedDayId ?: _state.value.selectedDayId ?: return false
+        return routines.day(dayId) != null
+    }
 
     /** Descarta la sesión abierta (la deja `ABANDONED`) y refresca el estado. */
     fun discardActiveSession() {
