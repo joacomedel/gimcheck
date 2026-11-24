@@ -69,9 +69,8 @@ fun GimNavHost(
         }
         composable(GimDestination.RUTINAS.route) {
             RutinasScreen(
-                // El editor del día es GIM-17: por ahora "Agregar ejercicio" abre el
-                // catálogo, que es el paso previo real y no deja un botón muerto.
-                onAddExercise = { navController.navigate(GimDestination.EJERCICIOS.route) },
+                // El catálogo global sigue siendo GIM-18 (pantalla propia). Agregar a un
+                // día ya no navega: lo resuelve el editor in situ (GIM-47).
                 onOpenExercises = { navController.navigate(GimDestination.EJERCICIOS.route) },
             )
         }

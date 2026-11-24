@@ -177,6 +177,27 @@ class RutinasViewModelTest {
     }
 
     @Test
+    fun `agregar desde el dia abre el selector en el editor y suma al borrador`() = runBlocking {
+        val state = loadedState()
+        val dayId = requireNotNull(state.selectedDayId)
+        viewModel.selectDay(dayId)
+
+        viewModel.startEditWithPicker()
+
+        val picking = withTimeout(5_000) { viewModel.state.first { it.editor?.picking == true } }
+        val editor = requireNotNull(picking.editor)
+        assertEquals("el selector tiene el catálogo completo", 32, editor.catalog.size)
+        val before = editor.items.size
+
+        viewModel.addExercise(requireNotNull(editor.catalog.firstOrNull()).id)
+
+        val after = withTimeout(5_000) {
+            viewModel.state.first { it.editor?.picking == false && it.editor?.dirty == true }
+        }
+        assertEquals(before + 1, requireNotNull(after.editor).items.size)
+    }
+
+    @Test
     fun `renombrar el plan se refleja por flow`() = runBlocking {
         val state = loadedState()
         val planId = requireNotNull(state.selectedPlanId)

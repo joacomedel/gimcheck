@@ -356,6 +356,16 @@ class RutinasViewModel internal constructor(
         lastData?.let(::publish)
     }
 
+    /**
+     * "Agregar ejercicio" desde el día en lectura (GIM-47): entra al editor y abre el
+     * selector en el mismo toque. Antes esa acción navegaba a la pantalla Ejercicios,
+     * que todavía es el placeholder de GIM-18, y el usuario aterrizaba en una lista vacía.
+     */
+    fun startEditWithPicker() {
+        if (draft == null) startEdit()
+        openPicker()
+    }
+
     fun closePicker() {
         if (!picking) return
         picking = false

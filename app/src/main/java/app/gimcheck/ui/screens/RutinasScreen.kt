@@ -84,7 +84,6 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun RutinasScreen(
-    onAddExercise: () -> Unit,
     onOpenExercises: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -127,7 +126,7 @@ fun RutinasScreen(
         onDuplicateDay = viewModel::duplicateDay,
         onRenameDay = viewModel::renameDay,
         onDeleteDay = viewModel::deleteDay,
-        onAddExercise = onAddExercise,
+        onAddExercise = viewModel::startEditWithPicker,
         onOpenExercises = onOpenExercises,
         editor = DiaEditorActions(
             onStart = viewModel::startEdit,
@@ -325,6 +324,7 @@ private fun RutinasContent(
         item(key = "acciones-dia") {
             DayActions(
                 day = day,
+                onAddExercise = onAddExercise,
                 onDuplicate = { onDuplicateDay(day.id) },
                 onRename = { name -> onRenameDay(day.id, name) },
                 onDelete = { onDeleteDay(day.id) },
@@ -792,6 +792,7 @@ private fun PlanCard(
 @Composable
 private fun DayActions(
     day: RutinaDayDetailUi,
+    onAddExercise: () -> Unit,
     onDuplicate: () -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
@@ -828,7 +829,8 @@ private fun DayActions(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(GimSpacing.m),
             ) {
-                ActionText(stringResource(R.string.rutinas_editar_dia), colors.accent, onEdit)
+                ActionText(stringResource(R.string.rutinas_editor_agregar), colors.accent, onAddExercise)
+                ActionText(stringResource(R.string.rutinas_editar_dia), colors.ink2, onEdit)
                 ActionText(stringResource(R.string.rutinas_duplicar_dia), colors.ink2, onDuplicate)
                 ActionText(
                     label = stringResource(R.string.rutinas_renombrar_dia),
