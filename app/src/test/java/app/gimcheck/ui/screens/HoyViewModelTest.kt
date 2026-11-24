@@ -2,6 +2,8 @@ package app.gimcheck.ui.screens
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import app.gimcheck.core.LogSet
+import app.gimcheck.core.SessionEffect
 import app.gimcheck.core.dayStats
 import app.gimcheck.core.formatDuration
 import app.gimcheck.data.db.AppDatabase
@@ -125,6 +127,43 @@ class HoyViewModelTest {
         assertEquals(formatDuration(stats.totalSeconds), state.durationLabel)
         assertEquals(stats.sets.toString(), state.setsLabel)
         assertEquals(day.id, state.days.single { it.selected }.id)
+    }
+
+    @Test
+    fun `con la rutina B activa Hoy arranca su dia y la superserie salta`() = runBlocking {
+        loadedState()
+        val all = routines.observeRoutines().first()
+        val routineB = requireNotNull(all.firstOrNull { it.name.startsWith("Rutina B") }) {
+            "el seed tiene que traer la Rutina B"
+        }
+        settings.setActiveRoutine(routineB.id)
+
+        // El plan activo es una fila aparte: la pantalla tiene que reaccionar al cambio.
+        val state = withTimeout(5_000) {
+            viewModel.state.first { !it.loading && it.routineName == routineB.name }
+        }
+        assertEquals(6, state.days.size)
+
+        val day = requireNotNull(routineB.days.firstOrNull { it.id == state.selectedDayId })
+        val press = requireNotNull(day.items.firstOrNull())
+        assertEquals("Press plano", press.exercise.name)
+        assertTrue("la Rutina B del seed tiene superserie en el press plano", press.supersetNext)
+
+        assertTrue("la sesión tiene que arrancar desde Hoy", viewModel.startSessionNow())
+        val guided = requireNotNull(sessions.guidedNow()) { "no se creó la sesión guiada" }
+        assertEquals(routineB.id, guided.day.id)
+
+        val transition = sessions.dispatch(
+            guided,
+            LogSet(weightKg = 60.0, reps = 5, isWarmup = false, at = now, now = t0),
+            t0,
+        )
+        assertEquals(
+            "anotar el press plano tiene que dejar el cursor en el siguiente de la superserie",
+            "Antebrazo",
+            transition.state.currentItem?.exercise?.name,
+        )
+        assertTrue(SessionEffect.ShowNextInSuperset in transition.effects)
     }
 
     @Test

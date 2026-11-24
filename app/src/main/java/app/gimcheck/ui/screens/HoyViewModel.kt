@@ -162,16 +162,30 @@ class HoyViewModel internal constructor(
     fun start() {
         if (observation != null) return
         observation = scope.launch {
+            // El plan activo es una fila aparte (`app_setting`) y no parte de
+            // `AppSettings`; se combina acá para que Hoy elija el mismo plan que marcó
+            // Rutinas (GIM-46).
+            val preferences = settings.settings.combine(settings.activeRoutineId) { prefs, activeId ->
+                prefs to activeId
+            }
             combine(
                 routines.observeRoutines(),
                 exercises.observeExercises(),
-                settings.settings,
+                preferences,
                 // Solo terminadas: una sesión abandonada conserva sus series pero no es un
                 // entrenamiento, así que no aparece en "Últimos" (GIM-24).
                 sessions.observeFinishedHistory(),
                 metrics.observeAll(),
-            ) { plans, catalog, prefs, history, bodyMetrics ->
-                HoyData(plans, catalog, prefs, history, bodyMetrics, resumer.resumed.value)
+            ) { plans, catalog, prefsAndActive, history, bodyMetrics ->
+                HoyData(
+                    routines = plans,
+                    exercises = catalog,
+                    settings = prefsAndActive.first,
+                    history = history,
+                    bodyMetrics = bodyMetrics,
+                    resumed = resumer.resumed.value,
+                    activeRoutineId = prefsAndActive.second,
+                )
             }.combine(resumer.resumed) { data, resumed -> data.copy(resumed = resumed) }
                 .collect { data ->
                     lastData = data
@@ -254,7 +268,13 @@ class HoyViewModel internal constructor(
     // --- proyección a la UI -----------------------------------------------------
 
     private fun publish(data: HoyData) {
-        val routine = data.routines.firstOrNull { !it.archived } ?: data.routines.firstOrNull()
+        // El plan activo manda: si Rutinas marcó B, Hoy (y la sesión que se arranca
+        // desde acá) tienen que ser B. Antes se usaba `firstOrNull()` y siempre ganaba
+        // la Rutina A, por eso la superserie de B no saltaba (GIM-46).
+        val activeId = data.activeRoutineId
+        val routine = data.routines.firstOrNull { it.id == activeId && !it.archived }
+            ?: data.routines.firstOrNull { !it.archived }
+            ?: data.routines.firstOrNull()
         if (routine == null) {
             _state.value = _state.value.copy(loading = false, hasRoutine = false, days = emptyList())
             return
@@ -332,6 +352,8 @@ class HoyViewModel internal constructor(
         val history: List<Session>,
         val bodyMetrics: List<BodyMetric>,
         val resumed: ActiveSession?,
+        /** `app_setting.activeRoutineId`: el plan que el dueño marcó en Rutinas. */
+        val activeRoutineId: String?,
     )
 
     companion object {
