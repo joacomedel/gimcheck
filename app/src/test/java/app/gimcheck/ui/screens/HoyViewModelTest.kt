@@ -151,7 +151,7 @@ class HoyViewModelTest {
 
         assertTrue("la sesión tiene que arrancar desde Hoy", viewModel.startSessionNow())
         val guided = requireNotNull(sessions.guidedNow()) { "no se creó la sesión guiada" }
-        assertEquals(routineB.id, guided.day.id)
+        assertEquals(day.id, guided.day.id)
 
         val transition = sessions.dispatch(
             guided,
