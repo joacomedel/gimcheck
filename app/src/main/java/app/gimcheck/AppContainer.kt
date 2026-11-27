@@ -10,6 +10,7 @@ import app.gimcheck.data.repository.SessionRepository
 import app.gimcheck.data.repository.SessionResumer
 import app.gimcheck.data.repository.SettingsRepository
 import app.gimcheck.data.seed.SeedImporter
+import app.gimcheck.data.transfer.BackupExporter
 import app.gimcheck.data.transfer.WebBackupImporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -57,6 +58,18 @@ class AppContainer(context: Context) {
      * catálogo en una transacción y conserva el historial; ver [WebBackupImporter].
      */
     internal val webBackup: WebBackupImporter = WebBackupImporter(database, settings)
+
+    /**
+     * Export de un backup completo (GIM-29). Sólo lee: arma el snapshot con los
+     * repositorios y lo serializa con el contrato de `:core`.
+     */
+    internal val backup: BackupExporter = BackupExporter(
+        routines = routines,
+        exercises = exercises,
+        sessions = sessions,
+        metrics = metrics,
+        settings = settings,
+    )
 
     private val seedImporter: SeedImporter = SeedImporter(database)
 

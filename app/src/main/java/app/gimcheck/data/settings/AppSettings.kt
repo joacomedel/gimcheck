@@ -40,6 +40,43 @@ enum class RestVibration { SHORT, LONG, DOUBLE }
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /**
+ * Las tres capas del aviso de fin de descanso (§5) como banderas independientes.
+ *
+ * `alertMode` es la fuente de verdad (8 combinaciones), pero una pantalla de ajustes
+ * con 8 chips es ilegible: se edita con tres toggles y se recompone con
+ * [alertModeOf]. El mapeo es total y no pierde ninguna combinación.
+ */
+val AlertMode.showsScreen: Boolean
+    get() = this == AlertMode.SCREEN ||
+        this == AlertMode.SCREEN_VIBRATE ||
+        this == AlertMode.SCREEN_SOUND ||
+        this == AlertMode.SCREEN_VIBRATE_SOUND
+
+val AlertMode.vibrates: Boolean
+    get() = this == AlertMode.VIBRATE ||
+        this == AlertMode.SCREEN_VIBRATE ||
+        this == AlertMode.VIBRATE_SOUND ||
+        this == AlertMode.SCREEN_VIBRATE_SOUND
+
+val AlertMode.sounds: Boolean
+    get() = this == AlertMode.SOUND ||
+        this == AlertMode.SCREEN_SOUND ||
+        this == AlertMode.VIBRATE_SOUND ||
+        this == AlertMode.SCREEN_VIBRATE_SOUND
+
+/** Recompone el `alertMode` a partir de las tres banderas. */
+fun alertModeOf(screen: Boolean, vibrate: Boolean, sound: Boolean): AlertMode = when {
+    screen && vibrate && sound -> AlertMode.SCREEN_VIBRATE_SOUND
+    screen && vibrate -> AlertMode.SCREEN_VIBRATE
+    screen && sound -> AlertMode.SCREEN_SOUND
+    vibrate && sound -> AlertMode.VIBRATE_SOUND
+    screen -> AlertMode.SCREEN
+    vibrate -> AlertMode.VIBRATE
+    sound -> AlertMode.SOUND
+    else -> AlertMode.NONE
+}
+
+/**
  * Todos los ajustes de §8, tipados y con los defaults de la tabla.
  *
  * [DEFAULT] es la fuente de verdad de los valores iniciales: si §8 cambia, cambia

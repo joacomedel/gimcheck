@@ -96,6 +96,17 @@ class SessionRepository internal constructor(
             sessions.map { row -> row.toDomain(bySession[row.id].orEmpty()) }
         }
 
+    /**
+     * Todas las sesiones terminadas con sus series, en una foto (export de backup).
+     *
+     * Es el mismo conjunto que muestra Historial: una sesión abandonada no es un
+     * entrenamiento y no viaja en el backup.
+     */
+    suspend fun allSessions(): List<Session> = withContext(io) {
+        val bySession = sessionSetDao.all().groupBy { it.sessionId }
+        sessionDao.finishedHistory().map { row -> row.toDomain(bySession[row.id].orEmpty()) }
+    }
+
     /** Foto del histórico terminado, para el resumen de fin de sesión (GIM-24). */
     suspend fun finishedHistory(): List<Session> = withContext(io) {
         val bySession = sessionSetDao.all().groupBy { it.sessionId }
@@ -206,6 +217,17 @@ class SessionRepository internal constructor(
 
     suspend fun deleteSet(id: String) = withContext(io) {
         sessionSetDao.deleteById(id)
+    }
+
+    /**
+     * Borra una sesión del histórico y sus series (`session_set` cae por CASCADE).
+     *
+     * Se usa desde Historial para descartar un entrenamiento cargado por error. La
+     * sesión `ACTIVE` no se borra por acá: descartarla es [abandon] (conserva las
+     * series y deja el registro).
+     */
+    suspend fun deleteSession(id: String) = withContext(io) {
+        sessionDao.delete(id)
     }
 
     /** Última serie de trabajo de un ejercicio: insumo de `autoFillLast` (§8). */

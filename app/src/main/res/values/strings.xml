@@ -310,4 +310,134 @@
     <string name="datos_import_invalido">El archivo no es un backup válido: %1$s</string>
     <string name="datos_import_fallo">No se pudo importar: %1$s</string>
     <string name="datos_import_error_lectura">No se pudo leer el archivo elegido.</string>
+
+    <!--
+      Historial (GIM-25): lista por semana ISO y detalle con corrección de series.
+      Sentence case y voseo, como el resto. "PR"/"PRs" no se pluraliza con "PRs" en
+      inglés: es la sigla del contrato (§12) y se usa igual en singular y plural.
+    -->
+    <string name="hist_total_uno">1 entrenamiento</string>
+    <string name="hist_total">%1$d entrenamientos</string>
+    <string name="hist_pr_uno">1 PR</string>
+    <string name="hist_prs">%1$d PR</string>
+    <string name="hist_volver">Volver</string>
+    <string name="hist_sin_series">Este entrenamiento no tiene series.</string>
+    <string name="hist_borrar_sesion">Borrar entrenamiento</string>
+    <string name="hist_borrar_sesion_pregunta">¿Borrar este entrenamiento y todas sus series?</string>
+    <string name="hist_borrar_serie_pregunta">¿Borrar esta serie?</string>
+
+    <!--
+      Progreso (GIM-14/26/27/28): tres vistas con chips, gráficos Canvas propios y
+      estados vacíos del contrato. "PR" y "kg" no se traducen.
+    -->
+    <string name="chart_sin_datos">Sin datos para graficar.</string>
+    <string name="progreso_tab_pr">PR</string>
+    <string name="progreso_tab_volumen">Volumen</string>
+    <string name="progreso_tab_peso">Peso</string>
+    <string name="progreso_rango_todo">Todo</string>
+    <string name="progreso_pr_titulo">PR estimado</string>
+    <string name="progreso_pr_primero">Primer PR del ejercicio.</string>
+    <string name="progreso_planes">Planes</string>
+    <string name="progreso_volumen">Volumen</string>
+    <string name="progreso_por_semana">Por semana</string>
+    <string name="progreso_por_sesion">Por sesión</string>
+    <string name="progreso_semana_actual">Semana actual</string>
+    <string name="progreso_rango_visible">Barras</string>
+    <string name="progreso_barras">en el rango</string>
+    <string name="progreso_series_musculo">Series por músculo</string>
+    <string name="progreso_indirectas">Con indirectas</string>
+    <string name="progreso_musculos_vacio">Todavía no hay series esta semana.</string>
+    <string name="progreso_peso_ultimo">Último peso</string>
+    <string name="progreso_peso_registros">Registros</string>
+    <string name="progreso_peso_dias">días anotados</string>
+    <string name="progreso_peso_promedio">prom. 7 d</string>
+    <string name="progreso_peso_sin_datos">Sin registros de peso. Anotá el primero abajo.</string>
+    <string name="progreso_peso_hoy">Anotar el peso de hoy</string>
+    <string name="progreso_peso_editando">Corrigiendo el peso del %1$s</string>
+    <string name="progreso_peso_guardar">Guardar peso</string>
+    <string name="progreso_peso_anotar_hoy">Anotar hoy</string>
+    <string name="progreso_peso_registros_titulo">Registros</string>
+    <string name="progreso_peso_borrar_pregunta">¿Borrar el peso del %1$s?</string>
+
+    <!--
+      Ajustes (GIM-29). Las etiquetas de los steppers dicen la unidad entre paréntesis
+      (min, s, kg) para que no haya que adivinarla. Los tonos y patrones de vibración
+      son las tres opciones de §8, no una lista inventada.
+    -->
+    <string name="ajustes_calentamiento">Calentamiento (min)</string>
+    <string name="ajustes_traslado">Traslado entre bloques (s)</string>
+    <string name="ajustes_drops">Bajadas de drop set</string>
+    <string name="ajustes_drop_sec">Trabajo por bajada (s)</string>
+    <string name="ajustes_rango_min">Rango semanal mínimo (series)</string>
+    <string name="ajustes_rango_max">Rango semanal máximo (series)</string>
+    <string name="ajustes_paso">Paso de peso (kg)</string>
+    <string name="ajustes_calculo">Cálculo</string>
+    <string name="ajustes_formula">Fórmula de e1RM</string>
+    <string name="ajustes_autofill">Rellenar con la última serie</string>
+    <string name="ajustes_bodyweight">Sumar el peso corporal al volumen</string>
+    <string name="ajustes_keep_screen">Mantener la pantalla encendida</string>
+    <string name="ajustes_aviso_como">Cómo avisar el fin del descanso</string>
+    <string name="ajustes_aviso_pantalla">Pantalla completa</string>
+    <string name="ajustes_aviso_vibracion">Vibración</string>
+    <string name="ajustes_aviso_sonido">Sonido</string>
+    <string name="ajustes_aviso_nada">Sin pantalla, vibración ni sonido el aviso no se va a notar.</string>
+    <string name="ajustes_sonido">Tono</string>
+    <string name="ajustes_sonido_default">Predeterminado</string>
+    <string name="ajustes_sonido_chime">Campana</string>
+    <string name="ajustes_sonido_beep">Pitido</string>
+    <string name="ajustes_vibracion">Patrón</string>
+    <string name="ajustes_vibracion_corta">Corta</string>
+    <string name="ajustes_vibracion_larga">Larga</string>
+    <string name="ajustes_vibracion_doble">Doble</string>
+    <string name="ajustes_repetir">Repetir el aviso (veces)</string>
+    <string name="ajustes_tema">Tema</string>
+    <string name="ajustes_exportar">Exportar backup</string>
+    <string name="ajustes_exportar_nota">Guarda rutinas, ejercicios, entrenamientos y pesos en un JSON. Sirve para no perder los datos si cambiás de teléfono.</string>
+    <string name="ajustes_export_listo">Backup armado: %1$s. Elegí dónde guardarlo.</string>
+    <string name="ajustes_export_error">No se pudo armar el backup. Probá de nuevo.</string>
+    <string name="ajustes_export_guardado">Backup guardado: %1$s</string>
+    <string name="ajustes_acerca">Acerca de</string>
+    <string name="ajustes_version">GimCheck %1$s</string>
+    <string name="ajustes_reset">Volver a los ajustes por defecto</string>
+    <string name="ajustes_reset_pregunta">¿Volver a los ajustes por defecto? No se borran rutinas ni entrenamientos.</string>
+    <string name="ajustes_reset_confirmar">Restablecer</string>
+
+    <!--
+      Catálogo de ejercicios (GIM-18): buscador, filtro, ficha editable y músculos.
+      "En N lugares" cuenta day_item sobre todas las rutinas y se repite en el borrado.
+    -->
+    <string name="ejercicios_buscar">Buscar ejercicio</string>
+    <string name="ejercicios_todos">Todos</string>
+    <string name="ejercicios_total">%1$d ejercicios</string>
+    <string name="ejercicios_filtrados">%1$d de %2$d ejercicios</string>
+    <string name="ejercicios_nuevo">Nuevo ejercicio</string>
+    <string name="ejercicios_editar">Editar ejercicio</string>
+    <string name="ejercicios_nombre">Nombre</string>
+    <string name="ejercicios_musculo_principal">Músculo principal</string>
+    <string name="ejercicios_multiarticular">Multiarticular</string>
+    <string name="ejercicios_carga">Tipo de carga</string>
+    <string name="ejercicios_carga_externa">Peso externo</string>
+    <string name="ejercicios_carga_corporal">Peso corporal</string>
+    <string name="ejercicios_segundos">Segundos por serie</string>
+    <string name="ejercicios_descanso">Descanso entre series (s)</string>
+    <string name="ejercicios_secundarios">Músculos secundarios</string>
+    <string name="ejercicios_sin_secundarios">Sin secundarios.</string>
+    <string name="ejercicios_agregar_secundario">Agregar músculo secundario</string>
+    <string name="ejercicios_elegir_musculo">Elegí el músculo que aporta</string>
+    <string name="ejercicios_quitar">Quitar</string>
+    <string name="ejercicios_factor">Factor</string>
+    <string name="ejercicios_guardar">Guardar ejercicio</string>
+    <string name="ejercicios_borrar">Eliminar ejercicio</string>
+    <string name="ejercicios_borrar_pregunta">¿Eliminar «%1$s»? Está %2$s y se quita de todos los días.</string>
+    <string name="ejercicios_volver">Volver</string>
+    <string name="ejercicios_musculos">Músculos</string>
+    <string name="ejercicios_musculos_nota">El catálogo arranca con los de la web; podés sumar los que uses.</string>
+    <string name="ejercicios_agregar_musculo">Agregar</string>
+    <string name="ejercicios_error_nombre">Poné un nombre.</string>
+    <string name="ejercicios_error_duplicado">Ya hay un ejercicio con ese nombre.</string>
+    <string name="ejercicios_error_musculo">Elegí el músculo principal.</string>
+    <string name="ejercicios_error_tiempo">Los tiempos tienen que estar entre 5 y 600 s (serie) y 0 y 900 s (descanso).</string>
+    <string name="ejercicios_error_factor">El factor va de 0,1 a 1.</string>
+    <string name="ejercicios_musculo_duplicado">Ese músculo ya existe o ya está en el ejercicio.</string>
+    <string name="ejercicios_musculo_vacio">Poné un nombre para el músculo.</string>
 </resources>

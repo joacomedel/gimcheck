@@ -9,6 +9,7 @@ import app.gimcheck.data.db.RoutineEntity
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -63,6 +64,17 @@ class RoutineRepository internal constructor(
                 },
             )
         }
+    }
+
+    /**
+     * Todos los planes materializados, en una foto (export de backup, GIM-29).
+     *
+     * Reusa [observeRoutines] para no duplicar el armado días/ítems/ejercicios; el
+     * `first()` es la foto del estado actual, no un Flow que la pantalla tenga que
+     * observar.
+     */
+    suspend fun allRoutines(): List<Routine> = withContext(io) {
+        observeRoutines().first()
     }
 
     /** Ítems de un día, materializados (lectura puntual, no reactiva). */
