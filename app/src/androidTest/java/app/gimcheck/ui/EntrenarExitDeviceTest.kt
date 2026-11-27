@@ -130,23 +130,17 @@ class EntrenarExitDeviceTest {
     private fun abort(what: String): Nothing =
         throw AssertionError("$what.\n${screenState()}")
 
-    /** Jerarquía primero (lo más útil), después actividad y ventanas visibles. */
+    /** Jerarquía primero (lo más útil), más un resumen corto de ventanas. */
     private fun screenState(): String {
         val tree = try {
             val file = File(app.cacheDir, "window-dump.xml")
             device.dumpWindowHierarchy(file)
-            file.readText().take(4_000)
+            file.readText().take(6_000)
         } catch (error: Throwable) {
             "no se pudo volcar la jerarquía: $error"
         }
-        val activity = shell(
-            "dumpsys activity activities | grep -E 'topResumedActivity|ResumedActivity' | head -3",
-        )
-        val windows = shell(
-            "dumpsys window windows | grep -E 'APPLICATION_OVERLAY|isVisible=true' | head -10",
-        )
-        return "paquete=${device.currentPackageName}\n" +
-            "actividad:\n$activity\nventanas:\n$windows\njerarquía:\n$tree"
+        val overlays = shell("dumpsys window windows | grep -c 'APPLICATION_OVERLAY'").trim()
+        return "paquete=${device.currentPackageName}\noverlays=$overlays\njerarquía:\n$tree"
     }
 
     private fun shell(command: String): String {

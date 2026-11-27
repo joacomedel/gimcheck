@@ -6,6 +6,8 @@ import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -204,10 +206,21 @@ class SystemRestOverlay(context: Context) : RestOverlayPresenter {
         }
 
         private fun remove(windowManager: WindowManager, view: View) {
-            try {
-                windowManager.removeViewImmediate(view)
-            } catch (e: RuntimeException) {
-                // Ya no estaba (el sistema lo retiró al morir el proceso).
+            // `removeViewImmediate` toca la jerarquía de vistas y tiene que correr en el
+            // hilo dueño (main). Si `hideAny` llega desde otro hilo, antes lanzaba
+            // CalledFromWrongThreadException, se lo tragaba el catch y la ventana quedaba
+            // pegada **sin referencia** (active ya estaba en null): imposible de sacar.
+            val action = Runnable {
+                try {
+                    windowManager.removeViewImmediate(view)
+                } catch (e: RuntimeException) {
+                    // Ya no estaba (el sistema lo retiró al morir el proceso).
+                }
+            }
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                action.run()
+            } else {
+                Handler(Looper.getMainLooper()).post(action)
             }
         }
 
