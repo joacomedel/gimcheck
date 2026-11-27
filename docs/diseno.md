@@ -200,7 +200,7 @@ GIM-15..GIM-21, que reemplazan el placeholder de su pantalla. El grafo vive en
 
 | # | Pantalla | Jerarquía visual (arriba → abajo) | Componentes | Acción primaria |
 |---|---|---|---|---|
-| 1 | **Hoy** | 1) título con fecha (Barlow 26) · 2) fila rutina + día (`DayChips` + `ChipFilter` de rutina) · 3) `StatTile` de duración y series del día · 4) peso corporal de hoy (`SetStepper` chico + "Anotar") · 5) botón primario · 6) `SectionHeader` "Últimos" + 3 `ExerciseRow`-like de entrenamientos | `SectionHeader`, `DayChips`, `StatTile`, `SetStepper`, `EmptyState` | "Empezar sesión" / "Continuar sesión" (52 dp, ancho completo) |
+| 1 | **Hoy** | 1) título con fecha (Barlow 26) · 2) fila rutina + día (`DayChips` + `ChipFilter` de rutina) · 3) `StatTile` de duración y series del día · 4) peso corporal de hoy (`SetStepper` chico + "Anotar") · 5) botón primario · 6) `SectionHeader` "Últimos" + 3 `ExerciseRow`-like de entrenamientos | `SectionHeader`, `DayChips`, `StatTile`, `SetStepper`, `EmptyState` | "Entrenar" / "Seguir entrenando (N min)" (52 dp, ancho completo; ADR 0007: no hay "sesión") |
 | 2 | **Entrenar** | 1) barra con bloque actual + progreso (`Meter` de series hechas) · 2) indicador "Superserie 1/2" en `etiqueta` · 3) nombre del ejercicio en `titulo` + "Ronda 2/3" · 4) dos `SetStepper` grandes (peso, reps) · 5) botón "Serie hecha" · 6) si hay descanso: `TimerRing` + "Saltar" / "±15 s" · 7) series anotadas del bloque (`SetRow`) | `Meter`, `SetStepper`, `TimerRing`, `SetRow`, `SectionHeader`, `ConfirmInline` | "Serie hecha" (52 dp) y, en descanso, "Empezar ya" |
 | 3 | **Descanso terminado** | 1) "Descansá hasta acá" en Barlow 40 (fondo `bg`, sin barra) · 2) próximo ejercicio + ronda/serie en `subtitulo`/`detalle` · 3) `TimerRing` opcional apagado (queda el tiempo transcurrido) · 4) botón "Empezar" · 5) texto chico "se cierra en N s" si hay auto-cierre | `TimerRing`, botón primario grande | "Empezar" (cierra y vuelve a Entrenar con el cursor en el próximo ítem) |
 | 4 | **Rutinas** | 1) `ChipFilter` de plan activo + "Nuevo plan" · 2) `DayChips` de días · 3) `StatTile` de duración/series del día · 4) lista de ítems (`ExerciseRow` con "3×10 · descanso 90 s" en `detalle`, drop set y superserie como sufijo en `muted`) · 5) advertencias en `warn` debajo de la lista · 6) acciones del día: duplicar, renombrar, exportar, eliminar (`ConfirmInline`) | `ChipFilter`, `DayChips`, `StatTile`, `ExerciseRow`, `ConfirmInline`, `BottomSheet` (agregar ítem) | "Editar día" / "Agregar ejercicio" (según modo) |
@@ -220,7 +220,7 @@ GIM-15..GIM-21, que reemplazan el placeholder de su pantalla. El grafo vive en
 | Rutinas | "Este día no tiene ejercicios." | "Agregar ejercicio" |
 | Ejercicios | "No hay ejercicios con ese músculo." | "Limpiar filtro" |
 | Progreso | "Sin datos todavía. Anotá una sesión." | "Ir a Hoy" |
-| Historial | "No hay sesiones anotadas." | "Empezar sesión" |
+| Historial | "No hay sesiones anotadas." | "Entrenar" |
 | Comparar | "Necesitás dos rutinas para comparar." | "Crear rutina" |
 | Ajustes | no aplica | — |
 

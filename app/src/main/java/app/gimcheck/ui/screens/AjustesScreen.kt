@@ -236,6 +236,12 @@ fun AjustesScreen(
             onValue = { viewModel.setDropSec(it.toInt()) },
         )
         SettingStepper(
+            label = stringResource(R.string.ajustes_drop_vol),
+            value = settings.dropVol,
+            step = 0.1,
+            onValue = { viewModel.setDropVol(it) },
+        )
+        SettingStepper(
             label = stringResource(R.string.ajustes_rango_min),
             value = settings.optMin.toDouble(),
             step = 1.0,
@@ -274,6 +280,11 @@ fun AjustesScreen(
                 onClick = { viewModel.setFormula(E1rmFormula.BRZYCKI) },
             )
         }
+        ToggleRow(
+            label = stringResource(R.string.ajustes_include_indirect),
+            checked = settings.includeIndirect,
+            onChange = viewModel::setIncludeIndirect,
+        )
         ToggleRow(
             label = stringResource(R.string.ajustes_autofill),
             checked = settings.autoFillLast,

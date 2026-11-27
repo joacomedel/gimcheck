@@ -89,6 +89,8 @@ class AjustesViewModel internal constructor(
     fun setTrans(value: Int) = update { it.copy(trans = value.coerceIn(0, 300)) }
     fun setDrops(value: Int) = update { it.copy(drops = value.coerceIn(0, 10)) }
     fun setDropSec(value: Int) = update { it.copy(dropSec = value.coerceIn(0, 180)) }
+    fun setDropVol(value: Double) = update { it.copy(dropVol = roundTenth(value).coerceIn(0.1, 1.0)) }
+    fun setIncludeIndirect(value: Boolean) = update { it.copy(includeIndirect = value) }
     fun setOptMin(value: Int) = update {
         val min = value.coerceIn(0, 60)
         it.copy(optMin = min, optMax = it.optMax.coerceAtLeast(min + 1))
@@ -146,4 +148,6 @@ class AjustesViewModel internal constructor(
     fun clearFeedback() {
         _state.value = _state.value.copy(exportedName = null)
     }
+
+    private fun roundTenth(value: Double): Double = kotlin.math.round(value * 10.0) / 10.0
 }

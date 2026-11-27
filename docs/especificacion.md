@@ -309,7 +309,7 @@ Restricciones de Android que hay que respetar (API 34+/35+/36):
 
 | # | Pantalla | Contenido |
 |---|---|---|
-| 1 | **Hoy** | Saludo con fecha, peso corporal del día (input rápido), rutina y día elegidos, tarjetas de duración/series, "Empezar sesión" o "Continuar sesión", últimos 3 entrenamientos |
+| 1 | **Hoy** | Saludo con fecha, peso corporal del día (input rápido), rutina y día elegidos, tarjetas de duración/series, "Entrenar" o "Seguir entrenando (N min)" (ADR 0007), últimos 3 entrenamientos |
 | 2 | **Entrenar** | Bloque actual, indicador de superserie (1/2), ejercicio, rondas x/y, peso y reps con steppers grandes, "Serie hecha", progreso de la sesión, descanso con cuenta regresiva, fin de sesión |
 | 3 | **Descanso terminado** | Pantalla completa: "Descansá hasta acá" + próximo ejercicio/serie + "Empezar" (cierra y vuelve a Entrenar) |
 | 4 | **Rutinas** | Lista de planes, plan activo, días, editor del día con ítems, advertencias, duplicar/eliminar, exportar |

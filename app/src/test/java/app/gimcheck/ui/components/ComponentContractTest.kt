@@ -129,7 +129,7 @@ class ComponentContractTest {
             "empty_progreso_text" to "Sin datos todavía. Anotá una sesión.",
             "empty_progreso_action" to "Ir a Hoy",
             "empty_historial_text" to "No hay sesiones anotadas.",
-            "empty_historial_action" to "Empezar sesión",
+            "empty_historial_action" to "Entrenar",
             "empty_comparar_text" to "Necesitás dos rutinas para comparar.",
             "empty_comparar_action" to "Crear rutina",
         )

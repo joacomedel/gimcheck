@@ -62,6 +62,6 @@ fun PrimaryButton(
 @Composable
 private fun PrimaryButtonPreview() {
     GimCheckTheme(mode = ThemeMode.DARK) {
-        PrimaryButton(label = "Empezar sesión", onClick = {})
+        PrimaryButton(label = "Entrenar", onClick = {})
     }
 }

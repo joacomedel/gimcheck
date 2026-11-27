@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.toJavaLocalDateTime
 import kotlinx.datetime.toKotlinLocalDateTime
 import java.time.Duration
 import java.time.Instant
@@ -280,7 +281,7 @@ class HoyViewModel internal constructor(
 
         val activeSession = data.activeSession
         val active = activeSession?.let { session ->
-            val minutes = Duration.between(session.startedAt, nowInstant())
+            val minutes = Duration.between(session.startedAt.toJavaLocalDateTime(), nowInstant())
                 .toMinutes()
                 .coerceAtLeast(0)
                 .toInt()

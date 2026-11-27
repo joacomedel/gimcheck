@@ -38,7 +38,7 @@ class EmptyStateCopyTest {
         assertEquals("Ir a Hoy", copy(R.string.empty_progreso_action))
 
         assertEquals("No hay sesiones anotadas.", copy(R.string.empty_historial_text))
-        assertEquals("Empezar sesión", copy(R.string.empty_historial_action))
+        assertEquals("Entrenar", copy(R.string.empty_historial_action))
 
         assertEquals("Necesitás dos rutinas para comparar.", copy(R.string.empty_comparar_text))
         assertEquals("Crear rutina", copy(R.string.empty_comparar_action))

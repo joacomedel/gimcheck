@@ -60,7 +60,7 @@ private fun EmptyStatePreview() {
     GimCheckTheme(mode = ThemeMode.LIGHT) {
         EmptyState(
             text = "No hay sesiones anotadas.",
-            actionLabel = "Empezar sesión",
+            actionLabel = "Entrenar",
             onAction = {},
         )
     }

@@ -105,6 +105,9 @@ class AjustesViewModelTest {
         viewModel.start()
         awaitState { !it.loading }
 
+        viewModel.toggleAlertSound(true)
+        awaitState { it.settings.alertMode.sounds }
+
         viewModel.toggleAlertScreen(false)
         val state = awaitState { !it.settings.alertMode.showsScreen }
         assertTrue("la vibración sigue prendida", state.settings.alertMode.vibrates)

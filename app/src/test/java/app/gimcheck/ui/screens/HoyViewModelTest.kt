@@ -41,7 +41,7 @@ import java.time.ZoneOffset
  *    son exactamente `dayStats` (no una segunda fórmula en la UI);
  * 2. el peso corporal escribe la `body_metric` de **hoy** y se relee (y se puede
  *    corregir);
- * 3. "Empezar sesión" crea la fila `session` + su `session_state` en el primer bloque.
+ * 3. "Entrenar" ya no crea la sesión: la crea Entrenar al entrar (GIM-49, ADR 0007).
  *
  * La verificación visual no existe en este equipo (`docs/build.md`): lo de abajo es
  * estado, no píxeles.

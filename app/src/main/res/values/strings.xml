@@ -36,12 +36,11 @@
     <string name="empty_progreso_text">Sin datos todavía. Anotá una sesión.</string>
     <string name="empty_progreso_action">Ir a Hoy</string>
     <string name="empty_historial_text">No hay sesiones anotadas.</string>
-    <string name="empty_historial_action">Empezar sesión</string>
+    <string name="empty_historial_action">Entrenar</string>
     <string name="empty_comparar_text">Necesitás dos rutinas para comparar.</string>
     <string name="empty_comparar_action">Crear rutina</string>
 
     <!-- Acciones y labels de componentes (§5, §12: verbo al frente, voseo). -->
-    <string name="accion_empezar_sesion">Empezar sesión</string>
     <string name="accion_serie_hecha">Serie hecha</string>
     <string name="accion_empezar">Empezar</string>
     <string name="accion_salir">Salir</string>
@@ -107,7 +106,6 @@
     <string name="accion_anotar">Anotar</string>
     <string name="accion_corregir">Corregir</string>
     <string name="accion_descartar">Descartar</string>
-    <string name="accion_continuar_sesion_min">Continuar sesión (%1$d min)</string>
     <string name="accion_seguir_entrenando_min">Seguir entrenando (%1$d min)</string>
     <string name="accion_entrenar">Entrenar</string>
 
@@ -371,11 +369,13 @@
     <string name="ajustes_traslado">Traslado entre bloques (s)</string>
     <string name="ajustes_drops">Bajadas de drop set</string>
     <string name="ajustes_drop_sec">Trabajo por bajada (s)</string>
+    <string name="ajustes_drop_vol">Series efectivas por bajada</string>
     <string name="ajustes_rango_min">Rango semanal mínimo (series)</string>
     <string name="ajustes_rango_max">Rango semanal máximo (series)</string>
     <string name="ajustes_paso">Paso de peso (kg)</string>
     <string name="ajustes_calculo">Cálculo</string>
     <string name="ajustes_formula">Fórmula de e1RM</string>
+    <string name="ajustes_include_indirect">Contar series indirectas</string>
     <string name="ajustes_autofill">Rellenar con la última serie</string>
     <string name="ajustes_bodyweight">Sumar el peso corporal al volumen</string>
     <string name="ajustes_keep_screen">Mantener la pantalla encendida</string>

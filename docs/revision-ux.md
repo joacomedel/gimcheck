@@ -39,9 +39,8 @@ app, no sólo los que faltan en la lista de tickets.
 6. **No se podía crear un ejercicio nuevo** (sólo usar los 32 del seed). → Alta completa
    en el catálogo, con validación de nombre duplicado y factor de secundarios.
 7. **El estado vacío de Historial decía "Empezar sesión"**, un concepto que ya no
-   existe en la UI. Queda anotado: el copy de §9 se actualiza cuando se revise el
-   contrato completo (no se tocó para no romper `EmptyStateCopyTest` sin actualizar
-   `docs/diseno.md` en el mismo cambio).
+   existe en la UI. → Copia a "Entrenar", con el test de copy y `docs/diseno.md` §9
+   actualizados en el mismo cambio.
 
 ## Lo que sigue pendiente (y por qué no se cerró acá)
 

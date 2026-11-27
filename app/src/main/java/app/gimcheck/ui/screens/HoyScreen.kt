@@ -56,7 +56,7 @@ import app.gimcheck.ui.theme.GimTheme
  * de días · `StatTile` de duración estimada, series y nombre del día · peso corporal de
  * hoy (`SetStepper` de 0,1 kg + "Anotar"/"Corregir") · aviso de sesión abierta (si la
  * hay) · `SectionHeader` "Últimos" con las 3 últimas sesiones · acción primaria de 52 dp
- * ("Empezar sesión" / "Continuar sesión (N min)").
+ * ("Entrenar" / "Seguir entrenando (N min)", ADR 0007).
  *
  * **Cero lógica de dominio acá**: el estado viene de [HoyViewModel] y los números ya
  * formateados (`dayStats`, `sessionVolume`). La pantalla sólo elige qué composable
@@ -268,7 +268,7 @@ private fun HoyContent(
                 Spacer(modifier = Modifier.height(GimSpacing.s))
                 val active = state.active
                 PrimaryButton(
-                    label = if (active != null) {
+                    label = if (active != null && !state.activeOtherDay) {
                         stringResource(R.string.accion_seguir_entrenando_min, active.minutesFromStart)
                     } else {
                         stringResource(R.string.accion_entrenar)

@@ -162,7 +162,7 @@ class CompararViewModel internal constructor(
         val includeIndirect = includeIndirectOverride ?: data.settings.includeIndirect
 
         val rows = listOf(
-            metric("Tiempo semanal", metricsA.totalSeconds, metricsB.totalSeconds, ::formatDuration),
+            metric("Tiempo semanal", metricsA.totalSeconds, metricsB.totalSeconds, format = ::formatDuration),
             metric("Series", metricsA.sets, metricsB.sets) { it.toString() },
             metric("Multiarticulares", metricsA.compounds, metricsB.compounds) { it.toString() },
             metric("Multiarticular", metricsA.compoundPct, metricsB.compoundPct) { "$it %" },

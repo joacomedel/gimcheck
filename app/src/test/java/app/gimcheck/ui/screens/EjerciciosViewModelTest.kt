@@ -202,6 +202,7 @@ class EjerciciosViewModelTest {
         viewModel.setSecondaryFactor("m9", 0.7)
         assertNotNull(viewModel.state.value.editing?.secondaries?.first { it.muscleId == "m9" })
         viewModel.save()
+        awaitState { it.editing == null }
         val saved = exercises.exercise("e1")!!
         assertEquals(0.7, saved.secondaries.single().factor, 1e-9)
     }
