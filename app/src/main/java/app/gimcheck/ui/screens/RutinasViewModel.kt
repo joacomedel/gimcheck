@@ -623,14 +623,17 @@ class RutinasViewModel internal constructor(
     /** Escribe el preview confirmado y selecciona la primera rutina importada. */
     fun confirmImport() {
         val preview = pendingImport ?: return
+        // El preview ya tiene los ids definitivos: se seleccionan **antes** de escribir
+        // para que una emisión de Room durante el import no vuelva a la rutina vieja.
+        val firstId = preview.routines.firstOrNull()?.id ?: return
+        pendingPlanId = firstId
+        pendingDayId = null
+        selectedPlanId = firstId
+        selectedDayId = null
         scope.launch {
             when (val outcome = transfer.import(preview)) {
                 is RoutineImportOutcome.Imported -> {
                     pendingImport = null
-                    pendingPlanId = outcome.firstRoutineId
-                    pendingDayId = null
-                    selectedPlanId = outcome.firstRoutineId
-                    selectedDayId = null
                     transferState = RutinasTransferUi.Imported(
                         routines = outcome.routines,
                         days = outcome.days,

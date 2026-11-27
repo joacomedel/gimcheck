@@ -123,6 +123,7 @@ class RoutineTransferTest {
 
     @Test
     fun `importar dos veces no pisa y desambigua el nombre`() = runBlocking {
+        val seedIds = routines.allRoutines().map { it.id }.toSet()
         val routine = routines.allRoutines().first()
         val exported = transfer.export(setOf(routine.id))
         val first = transfer.preview(exported) as RoutineImportPreview.Ready
@@ -132,7 +133,7 @@ class RoutineTransferTest {
 
         val second = transfer.preview(exported) as RoutineImportPreview.Ready
         val secondOutcome = transfer.import(second) as RoutineImportOutcome.Imported
-        val names = routines.allRoutines().filter { it.id != routine.id }.map { it.name }
+        val names = routines.allRoutines().filter { it.id !in seedIds }.map { it.name }
 
         assertEquals(2, names.size)
         assertEquals(names.size, names.distinct().size)
