@@ -89,7 +89,11 @@ fun GimNavHost(
             )
         }
         composable(GimDestination.COMPARAR.route) {
-            CompararScreen(onCreateRoutine = { navController.popBackStack() })
+            CompararScreen(
+                onCreateRoutine = {
+                    navController.navigateToBottomBar(GimDestination.RUTINAS)
+                },
+            )
         }
         composable(GimDestination.AJUSTES.route) {
             AjustesScreen()

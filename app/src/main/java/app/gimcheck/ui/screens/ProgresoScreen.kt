@@ -171,20 +171,22 @@ private fun ProgresoContent(
             }
         }
 
-        when (state.tab) {
-            ProgresoTab.PR -> prSection(state, onRange, onExercise, onGoHoy, onOpenCompare)
-            ProgresoTab.VOLUMEN -> volumeSection(state, onVolumeMode, onToggleIndirect, onGoHoy, onOpenCompare)
-            ProgresoTab.PESO -> bodySection(
-                state = state,
-                onWeight = onBodyWeight,
-                onEditRecord = onEditRecord,
-                onToday = onToday,
-                onSave = onSaveBody,
-                onDelete = onDeleteRecord,
-                confirmingDelete = confirmingDelete,
-                onAskDelete = { confirmingDelete = it },
-                onCancelDelete = { confirmingDelete = null },
-            )
+        if (!state.loading) {
+            when (state.tab) {
+                ProgresoTab.PR -> prSection(state, onRange, onExercise, onGoHoy, onOpenCompare)
+                ProgresoTab.VOLUMEN -> volumeSection(state, onVolumeMode, onToggleIndirect, onGoHoy, onOpenCompare)
+                ProgresoTab.PESO -> bodySection(
+                    state = state,
+                    onWeight = onBodyWeight,
+                    onEditRecord = onEditRecord,
+                    onToday = onToday,
+                    onSave = onSaveBody,
+                    onDelete = onDeleteRecord,
+                    confirmingDelete = confirmingDelete,
+                    onAskDelete = { confirmingDelete = it },
+                    onCancelDelete = { confirmingDelete = null },
+                )
+            }
         }
     }
 }
@@ -480,7 +482,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bodySection(
             Text(
                 text = stringResource(R.string.progreso_peso_anotar_hoy),
                 style = GimText.boton,
-                color = colors.accent,
+                color = GimTheme.colors.accent,
                 textAlign = TextAlign.Start,
                 modifier = Modifier
                     .fillMaxWidth()

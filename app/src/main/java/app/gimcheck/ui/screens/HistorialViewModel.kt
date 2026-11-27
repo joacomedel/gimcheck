@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.toKotlinLocalDateTime
 import kotlinx.datetime.toJavaLocalDateTime
 
 /**
@@ -204,7 +205,7 @@ class HistorialViewModel internal constructor(
     fun saveSetEdit() {
         val id = editingSetId ?: return
         scope.launch {
-            sessions.updateSet(id, roundTenth(editWeight), editReps.toInt().coerceAtLeast(0))
+            sessions.updateSet(id, roundTenth(editWeight), editReps.toInt().coerceAtLeast(0), rpe = null)
             editingSetId = null
         }
     }

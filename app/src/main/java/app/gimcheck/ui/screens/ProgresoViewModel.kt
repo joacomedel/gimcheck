@@ -42,6 +42,7 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.toKotlinLocalDate
+import kotlinx.datetime.toKotlinLocalDateTime
 
 /** Las tres vistas de Progreso (§6 fila 6): PR, volumen y peso corporal. */
 enum class ProgresoTab { PR, VOLUMEN, PESO }
@@ -363,7 +364,7 @@ class ProgresoViewModel internal constructor(
                 val delta = currentVolume - (previousVolume ?: 0.0)
                 signedKg(delta) + (if (previousVolume == null) " (sin semana previa)" else " vs semana pasada")
             },
-            volumeHasData = data.history.isNotEmpty(),
+            volumeHasData = inRange.isNotEmpty(),
             includeIndirect = includeIndirectNow,
             muscles = rowsWithVolume.map { row ->
                 val total = row.total(includeIndirectNow)

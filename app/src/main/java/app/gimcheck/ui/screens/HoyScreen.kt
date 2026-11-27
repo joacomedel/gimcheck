@@ -269,9 +269,9 @@ private fun HoyContent(
                 val active = state.active
                 PrimaryButton(
                     label = if (active != null) {
-                        stringResource(R.string.accion_continuar_sesion_min, active.minutesFromStart)
+                        stringResource(R.string.accion_seguir_entrenando_min, active.minutesFromStart)
                     } else {
-                        stringResource(R.string.accion_empezar_sesion)
+                        stringResource(R.string.accion_entrenar)
                     },
                     onClick = onStartSession,
                 )
@@ -305,14 +305,19 @@ private fun ActiveSessionRow(
         verticalArrangement = Arrangement.spacedBy(GimSpacing.xs),
     ) {
         Text(
-            text = stringResource(R.string.hoy_sesion_abierta) + " · " + active.dayName,
+            text = stringResource(R.string.hoy_sesion_abierta) + " · " + active.title,
             style = GimText.subtitulo,
             color = colors.ink,
             maxLines = 1,
         )
+        Text(
+            text = stringResource(R.string.hoy_entrenamiento_min, active.minutesFromStart),
+            style = GimText.detalle,
+            color = colors.muted,
+        )
         if (otherDay) {
             Text(
-                text = stringResource(R.string.hoy_sesion_otro_dia, active.dayName),
+                text = stringResource(R.string.hoy_sesion_otro_dia, active.dateLabel),
                 style = GimText.detalle,
                 color = colors.warn,
             )

@@ -89,7 +89,10 @@ class AjustesViewModel internal constructor(
     fun setTrans(value: Int) = update { it.copy(trans = value.coerceIn(0, 300)) }
     fun setDrops(value: Int) = update { it.copy(drops = value.coerceIn(0, 10)) }
     fun setDropSec(value: Int) = update { it.copy(dropSec = value.coerceIn(0, 180)) }
-    fun setOptMin(value: Int) = update { it.copy(optMin = value.coerceIn(0, 60)) }
+    fun setOptMin(value: Int) = update {
+        val min = value.coerceIn(0, 60)
+        it.copy(optMin = min, optMax = it.optMax.coerceAtLeast(min + 1))
+    }
     fun setOptMax(value: Int) = update { it.copy(optMax = value.coerceIn(1, 80).coerceAtLeast(it.optMin + 1)) }
     fun setWeightStep(value: Double) = update { it.copy(weightStep = value.coerceIn(0.5, 10.0)) }
     fun setFormula(value: E1rmFormula) = update { it.copy(e1rmFormula = value) }

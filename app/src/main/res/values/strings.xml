@@ -100,13 +100,16 @@
     <string name="hoy_ultimos">Últimos</string>
     <string name="hoy_peso_anotado">Anotado hoy: %1$s kg</string>
     <string name="hoy_peso_sin_anotar">Sin anotar</string>
-    <string name="hoy_sesion_abierta">Sesión abierta</string>
-    <string name="hoy_sesion_otro_dia">Hay una sesión activa del %1$s.</string>
+    <string name="hoy_sesion_abierta">Entrenamiento abierto</string>
+    <string name="hoy_sesion_otro_dia">Quedó un entrenamiento abierto del %1$s.</string>
+    <string name="hoy_entrenamiento_min">%1$d min en curso</string>
     <string name="hoy_descartar_pregunta">¿Descartar la sesión abierta?</string>
     <string name="accion_anotar">Anotar</string>
     <string name="accion_corregir">Corregir</string>
     <string name="accion_descartar">Descartar</string>
     <string name="accion_continuar_sesion_min">Continuar sesión (%1$d min)</string>
+    <string name="accion_seguir_entrenando_min">Seguir entrenando (%1$d min)</string>
+    <string name="accion_entrenar">Entrenar</string>
 
     <plurals name="hoy_series">
         <item quantity="one">%1$d serie</item>
@@ -440,4 +443,19 @@
     <string name="ejercicios_error_factor">El factor va de 0,1 a 1.</string>
     <string name="ejercicios_musculo_duplicado">Ese músculo ya existe o ya está en el ejercicio.</string>
     <string name="ejercicios_musculo_vacio">Poné un nombre para el músculo.</string>
+
+    <!--
+      Comparar (GIM-19): paridad con la pestaña Análisis de la web. El delta se lee
+      B − A; en conflictos y superseries pesadas menos es mejor (lo decide la pantalla).
+    -->
+    <string name="comparar_hint">Elegí dos planes y mirá qué cambia al pasar de A a B.</string>
+    <string name="comparar_plan_a">Plan A (base)</string>
+    <string name="comparar_plan_b">Plan B (nuevo)</string>
+    <string name="comparar_resumen">Resumen</string>
+    <string name="comparar_por_dia">Duración por día</string>
+    <string name="comparar_musculos">Series por músculo</string>
+    <string name="comparar_metrica">Métrica</string>
+    <string name="comparar_plan_a_corto">A</string>
+    <string name="comparar_plan_b_corto">B</string>
+    <string name="comparar_delta">Δ B−A</string>
 </resources>

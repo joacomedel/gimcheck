@@ -75,15 +75,18 @@ data class HoyDayUi(
 )
 
 /**
- * Sesión abierta lista para continuar.
+ * Entrenamiento abierto listo para seguir (ADR 0007: no hay "sesión", hay un
+ * entrenamiento del día).
  *
- * @param minutesFromStart minutos desde `session.started_at` (`Continuar sesión (12 min)`).
+ * @param title rutina del entrenamiento, o `Entrenamiento` si se borró.
+ * @param minutesFromStart minutos desde `session.started_at` (`Seguir entrenando (12 min)`).
+ * @param dateLabel fecha de inicio en corto, para avisar si quedó abierto de otro día.
  */
 data class HoyActiveUi(
     val sessionId: String,
-    val dayId: String,
-    val dayName: String,
+    val title: String,
     val minutesFromStart: Int,
+    val dateLabel: String,
 )
 
 /** Fila de "Últimos": fecha corta, volumen y series. */
@@ -179,7 +182,10 @@ class HoyViewModel internal constructor(
                     bodyMetrics = bodyMetrics,
                     resumed = resumer.resumed.value,
                     activeRoutineId = prefsAndActive.second,
+                    activeSession = null,
                 )
+            }.combine(sessions.observeActive()) { data, active ->
+                data.copy(activeSession = active)
             }.combine(resumer.resumed) { data, resumed -> data.copy(resumed = resumed) }
                 .collect { data ->
                     lastData = data
@@ -240,12 +246,7 @@ class HoyViewModel internal constructor(
     /** Descarta la sesión abierta (la deja `ABANDONED`) y refresca el estado. */
     fun discardActiveSession() {
         scope.launch {
-            val active = resumer.resumed.value
-            val sessionId = when (active) {
-                is ActiveSession.Resumable -> active.state.sessionId
-                is ActiveSession.MissingPlan -> active.sessionId
-                else -> null
-            } ?: return@launch
+            val sessionId = lastData?.activeSession?.id ?: return@launch
             sessions.abandon(sessionId, now())
             resumer.resume()
         }
@@ -277,7 +278,19 @@ class HoyViewModel internal constructor(
         val weight = draft ?: todayMetric?.weightKg ?: data.bodyMetrics.firstOrNull()?.weightKg ?: DEFAULT_WEIGHT_KG
         draft = weight
 
-        val active = data.resumed.toUi()
+        val activeSession = data.activeSession
+        val active = activeSession?.let { session ->
+            val minutes = Duration.between(session.startedAt, nowInstant())
+                .toMinutes()
+                .coerceAtLeast(0)
+                .toInt()
+            HoyActiveUi(
+                sessionId = session.id,
+                title = data.routines.firstOrNull { it.id == session.routineId }?.name ?: "Entrenamiento",
+                minutesFromStart = minutes,
+                dateLabel = shortDateLabel(session.startedAt.date),
+            )
+        }
 
         _state.value = HoyUiState(
             loading = false,
@@ -294,7 +307,7 @@ class HoyViewModel internal constructor(
             bodyWeightDraft = roundTenth(weight),
             bodyWeightSaved = todayMetric != null,
             active = active,
-            activeOtherDay = active != null && active.dayId != day.id,
+            activeOtherDay = activeSession != null && activeSession.startedAt.date != today,
             recent = data.history.take(RECENT_COUNT).map { session ->
                 session.toRecent(data.exercises, coreSettings)
             },
@@ -303,26 +316,6 @@ class HoyViewModel internal constructor(
 
     private fun Routine.dayFor(selected: String?): RoutineDay? =
         days.firstOrNull { it.id == selected } ?: days.firstOrNull()
-
-    private fun ActiveSession?.toUi(): HoyActiveUi? = when (val session = this) {
-        is ActiveSession.Resumable -> {
-            val startedAt = session.state.startedAt
-            val minutes = if (startedAt != null) {
-                Duration.between(startedAt, nowInstant()).toMinutes().coerceAtLeast(0).toInt()
-            } else {
-                0
-            }
-            HoyActiveUi(
-                sessionId = session.state.sessionId,
-                dayId = session.state.day.id,
-                dayName = session.state.day.name,
-                minutesFromStart = minutes,
-            )
-        }
-        // Sin plan no hay nada que guiar; el botón vuelve a "Empezar" y descartar
-        // sigue disponible desde `discardActiveSession`.
-        is ActiveSession.MissingPlan, ActiveSession.None, null -> null
-    }
 
     private fun Session.toRecent(exercises: List<app.gimcheck.core.Exercise>, settings: app.gimcheck.core.Settings): HoyRecentUi =
         HoyRecentUi(
@@ -340,6 +333,8 @@ class HoyViewModel internal constructor(
         val resumed: ActiveSession?,
         /** `app_setting.activeRoutineId`: el plan que el dueño marcó en Rutinas. */
         val activeRoutineId: String?,
+        /** Entrenamiento `ACTIVE` (ADR 0007), o `null`. */
+        val activeSession: Session?,
     )
 
     companion object {

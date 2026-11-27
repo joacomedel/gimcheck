@@ -6,25 +6,29 @@ descanso que toma la pantalla y gráficos propios.
 
 Repo: [`joacomedel/gimcheck`](https://github.com/joacomedel/gimcheck) (público), rama `master`.
 
-## Estado real (2026-11-18)
+## Estado real (2026-11-27)
 
-**El dominio está completo y verificado contra la web. La app todavía no tiene UI: el APK
-que se publica es un cascarón que muestra el texto "GimCheck".**
+**La app se usa de punta a punta**: Hoy, Entrenar (libre), Rutinas con editor, Ejercicios,
+Historial, Progreso (PR / volumen / peso), Comparar y Ajustes. Falta la verificación en el
+teléfono del dueño (QA) y el release por tag.
 
 | Pieza | Estado |
 |---|---|
-| `:core` (dominio Kotlin puro) | **completo para v1**: modelo y migrador de la web (`v1..v21`), `dayStats` con series efectivas y volumen por músculo, conflictos de superserie y pares multiarticulares, e1RM (Epley/Brzycki) + PR por serie, máquina de estados de la sesión guiada, validadores del editor, export/import JSON (backup v1 y plan de la web). **112 tests**, paridad con la web verificada en navegador real (`docs/paridad-web.md`) |
-| `:app` (Android) | `MainActivity` que pinta el texto "GimCheck". **Cero pantallas, cero ViewModel, cero Room** |
-| Las 9 pantallas | **0 de 9** (ver tabla abajo) |
-| Room / persistencia | no aplicado (dependencia en el catálogo, `KSP` sin usar). El único I/O es el JSON de `:core`, todavía sin cablear a la UI |
-| Alertas de descanso, servicio en primer plano, alarmas | no existen |
-| Gráficos | no existen |
-| CI | verde: `:core:test` (112 tests) + `:app:lintDebug` + `:app:assembleDebug` + artifact `gimcheck-debug.apk` |
+| `:core` (dominio Kotlin puro) | **completo para v1**: modelo y migrador de la web (`v1..v21`), `dayStats`, volumen por músculo, superseries, e1RM (Epley/Brzycki) + PR, sesión guiada histórica, validadores, export/import JSON y agregados de Progreso. **+120 tests**, paridad con la web verificada (`docs/paridad-web.md`) |
+| `:app` (Android) | Room v1 + 5 repositorios, seed con las dos rutinas del dueño, 9 pantallas, 6 ViewModels, cronómetro de descanso en primer plano y alerta en tres capas |
+| Pantallas | **9 de 9 implementadas**; la auditoría de diseño formal es GIM-15 |
+| Gráficos | Canvas propio (`ui/chart`): línea con área y PR, barras de volumen, barras por músculo con `Meter` |
+| Entrenar | **entrenamiento libre** (ADR 0007): sin "empezar sesión", selector de ejercicio, superserie como salto puntual, descanso persistido por deadline |
+| Historial | lista por semana ISO, detalle, corrección de series y borrado |
+| Ajustes | 19 ajustes de §8 conectados, tema, alertas y **export de backup**; import del backup de la web |
+| Release / QA | pendientes: GIM-30 (tag y APK de release), GIM-31 (QA en el teléfono), GIM-32 (guía de instalación) |
+| CI | `:core:test` + `:app:testDebugUnitTest` + `:app:lintDebug` + `:app:assembleDebug` y artifact `gimcheck-debug.apk` |
 | Gate local (`:core`) | verde, con guardas de RAM/temperatura/tiempo |
 
-En una frase: lo que se puede probar hoy es **la lógica**, con `make check`; lo que todavía
-no se puede probar es **usar la app**, porque no hay nada que tocar más allá del texto
-inicial. Ninguna de las 9 pantallas está empezada.
+En una frase: lo que se puede probar hoy es **la lógica** (`make check`) y **la app**
+instalando el APK del último run verde; lo que falta es que el dueño recorra el checklist
+de `docs/qa.md` (GIM-31) en su teléfono, sobre todo el aviso de fin de descanso con la
+pantalla apagada.
 
 Lo que hay que saber antes de tocar código: este equipo **no compila Android** (no existe
 `aapt2` para linux-arm64). El APK se compila en CI; localmente sólo corre el `:core`.
@@ -41,7 +45,7 @@ Lo que hay que saber antes de tocar código: este equipo **no compila Android** 
 | compileSdk | **37.0** (`compileSdk = 37` + `compileSdkMinor = 0`) |
 | targetSdk / minSdk | 36 / 26 |
 | JDK de build | 21 (host y CI); bytecode 17 |
-| KSP / Room | 2.3.14 / 2.8.5, declarados, **sin aplicar** |
+| KSP / Room | 2.3.14 / 2.8.5, aplicados (schema v1 en `app/schemas`) |
 | kotlinx-serialization-json | **1.9.0**, no 1.13.0: la 1.13 trae metadata de Kotlin 2.4 y el compilador es 2.2.10 (razón en [`docs/build.md`](docs/build.md)) |
 | kotlinx-datetime | 0.8.0 |
 
@@ -158,6 +162,8 @@ Entrenar es modal y pide confirmación al salir.
 | [`docs/adr/0004-alerta-descanso.md`](docs/adr/0004-alerta-descanso.md) | alerta de fin de descanso en tres capas |
 | [`docs/adr/0005-graficos-canvas.md`](docs/adr/0005-graficos-canvas.md) | gráficos propios con Canvas |
 | [`docs/adr/0006-dominio-puro-core.md`](docs/adr/0006-dominio-puro-core.md) | dominio puro en `:core`, testeable sin SDK |
+| [`docs/adr/0007-entrenamiento-libre.md`](docs/adr/0007-entrenamiento-libre.md) | Entrenar es un entrenamiento libre del día, no una sesión guiada |
+| [`docs/revision-ux.md`](docs/revision-ux.md) | revisión de UX 2026-11-27: qué se cerró, qué falta y qué mirar en el APK |
 
 Orden de lectura para arrancar: este README → `docs/especificacion.md` → `docs/diseno.md` →
 `docs/build.md`.
