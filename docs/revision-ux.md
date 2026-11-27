@@ -78,6 +78,8 @@ app, no sólo los que faltan en la lista de tickets.
   (`HistorialViewModelTest`, `ProgresoViewModelTest`, `AjustesViewModelTest`,
   `EjerciciosViewModelTest`) + `ChartScaleTest` y `AlertModeTest`. Corren en CI
   (`:app:testDebugUnitTest`), no en el Moto (no hay SDK Android arm64).
+- CI: run [46018755480](https://github.com/joacomedel/gimcheck/actions/runs/46018755480),
+  job `:core:test + :app:test + lint + assembleDebug` en `success` (commit `3459e3e`).
 - **No hay verificación visual acá**: la hace el dueño instalando el APK. Para esta
   tanda conviene mirar:
   1. Historial: terminar un entrenamiento y verlo en la semana con volumen y PR.

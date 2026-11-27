@@ -63,9 +63,11 @@ gh workflow run build.yml --repo joacomedel/gimcheck --ref master
 gh run list --repo joacomedel/gimcheck --workflow build.yml --limit 5
 ```
 
-Última corrida verde al escribir esto: run
-[44203803099](https://github.com/joacomedel/gimcheck/actions/runs/44203803099), `success`, 1 m 19 s,
-artifact de 11.359.283 B (11,36 MB / 10,83 MiB). Para el estado actual, siempre
+Última corrida del job principal verde al escribir esto: run
+[46018755480](https://github.com/joacomedel/gimcheck/actions/runs/46018755480), job
+`:core:test + :app:test + lint + assembleDebug` en `success`, artifact de 13.550.308 B
+(13,55 MB / 12,92 MiB). El workflow tiene además el job de emulador (GIM-44), que puede
+tardar más o fallar por infraestructura sin afectar el APK: para el estado actual, siempre
 `gh run list --repo joacomedel/gimcheck --workflow build.yml --limit 5`.
 
 No hay `connectedAndroidTest`, no hay emulador (ni acá ni en CI) y no se puede correr
