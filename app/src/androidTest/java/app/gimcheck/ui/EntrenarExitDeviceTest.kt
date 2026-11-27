@@ -37,8 +37,8 @@ class EntrenarExitDeviceTest {
         shell("appops set ${app.packageName} SCHEDULE_EXACT_ALARM allow")
         shell("input keyevent KEYCODE_WAKEUP")
         shell("wm dismiss-keyguard")
-        // Arranque limpio: sin una activity restaurada en Entrenar por un test anterior.
-        shell("am force-stop ${app.packageName}")
+        // No usar `am force-stop`: el test corre en el proceso de la app y se mataría a
+        // sí mismo. El arranque limpio se logra con CLEAR_TASK en [launchApp].
         SystemClock.sleep(500)
     }
 
@@ -78,7 +78,9 @@ class EntrenarExitDeviceTest {
     private fun launchApp() {
         val intent = app.packageManager.getLaunchIntentForPackage(app.packageName)
             ?: error("sin launcher para ${app.packageName}")
-        app.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        app.startActivity(
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        )
     }
 
     private fun shell(command: String): String {
