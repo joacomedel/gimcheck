@@ -29,7 +29,6 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.toJavaLocalDateTime
 import kotlinx.datetime.toKotlinLocalDateTime
 import java.time.Duration
-import java.time.Instant
 import kotlin.math.roundToInt
 
 /**
@@ -122,7 +121,6 @@ class HoyViewModel internal constructor(
     private val resumer: SessionResumer,
     private val scope: CoroutineScope,
     private val now: () -> LocalDateTime = { java.time.LocalDateTime.now().toKotlinLocalDateTime() },
-    private val nowInstant: () -> Instant = Instant::now,
 ) {
 
     constructor(container: AppContainer, scope: CoroutineScope) : this(
@@ -289,7 +287,13 @@ class HoyViewModel internal constructor(
 
         val activeSession = data.activeSession
         val active = activeSession?.let { session ->
-            val minutes = Duration.between(session.startedAt.toJavaLocalDateTime(), nowInstant())
+            // `startedAt` y `now()` son LocalDateTime; no se mezclan con un Instant
+            // porque `Duration.between` lanza DateTimeException (el crash al volver de
+            // Entrenar con el entrenamiento abierto).
+            val minutes = Duration.between(
+                session.startedAt.toJavaLocalDateTime(),
+                now().toJavaLocalDateTime(),
+            )
                 .toMinutes()
                 .coerceAtLeast(0)
                 .toInt()

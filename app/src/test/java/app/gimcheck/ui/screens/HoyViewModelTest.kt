@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.toJavaLocalDateTime
+import kotlinx.datetime.toKotlinLocalDateTime
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -90,7 +92,6 @@ class HoyViewModelTest {
             resumer = resumer,
             scope = scope,
             now = { now },
-            nowInstant = { t0 },
         )
         viewModel.start()
     }
@@ -171,6 +172,22 @@ class HoyViewModelTest {
         val corrected = withTimeout(5_000) { viewModel.state.first { it.bodyWeightLabel == "80,8" } }
         assertEquals(80.8, corrected.bodyWeightDraft, 1e-9)
         assertEquals(1, metrics.observeAll().first().count { it.date == now.date })
+    }
+
+    @Test
+    fun `con un entrenamiento abierto muestra los minutos transcurridos`() = runBlocking {
+        loadedState()
+        val plan = routines.observeRoutines().first().first()
+        // El caso que rompía: al volver de Entrenar hay una sesión ACTIVE y Hoy calcula
+        // hace cuánto empezó. Mezclar LocalDateTime con Instant lanzaba DateTimeException
+        // y el proceso moría; el usuario veía "la app se cierra y no vuelve a abrir".
+        val startedAt = now.toJavaLocalDateTime().minusMinutes(12).toKotlinLocalDateTime()
+        val id = sessions.openOrCreate(routineId = plan.id, startedAt = startedAt)
+
+        val state = withTimeout(5_000) { viewModel.state.first { it.active != null } }
+        assertEquals(id, state.active?.sessionId)
+        assertEquals("el título del entrenamiento es la rutina", plan.name, state.active?.title)
+        assertEquals(12, state.active?.minutesFromStart)
     }
 
     @Test

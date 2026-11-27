@@ -208,7 +208,6 @@ class EntrenarSummaryTest {
             resumer = SessionResumer(sessions, scope, now = { clock }),
             scope = scope,
             now = { Instants.fromEpochMillis(clock.toEpochMilli(), zone) },
-            nowInstant = { clock },
         )
         hoy.start()
         try {

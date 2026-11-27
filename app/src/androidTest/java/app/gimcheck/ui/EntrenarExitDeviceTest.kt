@@ -91,16 +91,24 @@ class EntrenarExitDeviceTest {
             ?: abort("no apareció el botón de confirmar")
         confirmar.click()
 
-        // Si la navegación quedó vacía o el proceso murió, esto no aparece.
+        // Con el entrenamiento todavía abierto, Hoy calcula "Seguir entrenando (N min)".
+        // Ahí estaba el crash real: Duration.between(LocalDateTime, Instant) lanzaba
+        // DateTimeException y el proceso moría al volver de Entrenar.
+        device.wait(Until.findObject(By.textContains("Seguir entrenando")), 10_000)
+            ?: abort("después de Salir Hoy no mostró el entrenamiento abierto")
+
+        // Si la navegación quedó vacía o el proceso murió, esto tampoco aparece.
         device.wait(Until.findObject(By.text("Hoy")), 10_000)
             ?: abort("después de Salir la app no volvió a Hoy")
 
-        // Y tiene que poder volver a abrirse: el segundo síntoma del reporte.
+        // Y tiene que poder volver a abrirse: el segundo síntoma del reporte. Como la
+        // sesión sigue activa, la prueba de fuego es que Hoy vuelva a calcular los
+        // minutos sin caerse.
         device.pressHome()
         SystemClock.sleep(700)
         launchApp()
-        device.wait(Until.findObject(By.text("Hoy")), 15_000)
-            ?: abort("la app no volvió a abrir")
+        device.wait(Until.findObject(By.textContains("Seguir entrenando")), 15_000)
+            ?: abort("la app no volvió a abrir con el entrenamiento abierto")
     }
 
     /**
