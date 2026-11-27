@@ -11,6 +11,7 @@ import app.gimcheck.data.repository.SessionResumer
 import app.gimcheck.data.repository.SettingsRepository
 import app.gimcheck.data.seed.SeedImporter
 import app.gimcheck.data.transfer.BackupExporter
+import app.gimcheck.data.transfer.RoutineTransfer
 import app.gimcheck.data.transfer.WebBackupImporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -68,6 +69,17 @@ class AppContainer(context: Context) {
         exercises = exercises,
         sessions = sessions,
         metrics = metrics,
+        settings = settings,
+    )
+
+    /**
+     * Export e import de rutinas (GIM-53). Es aditivo: importar una rutina no borra
+     * las existentes ni toca el historial.
+     */
+    internal val routineTransfer: RoutineTransfer = RoutineTransfer(
+        db = database,
+        routines = routines,
+        exercises = exercises,
         settings = settings,
     )
 

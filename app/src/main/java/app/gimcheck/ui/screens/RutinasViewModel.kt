@@ -25,6 +25,9 @@ import app.gimcheck.data.repository.ExerciseRepository
 import app.gimcheck.data.repository.RoutineRepository
 import app.gimcheck.data.repository.SettingsRepository
 import app.gimcheck.data.settings.AppSettings
+import app.gimcheck.data.transfer.RoutineImportOutcome
+import app.gimcheck.data.transfer.RoutineImportPreview
+import app.gimcheck.data.transfer.RoutineTransfer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -71,7 +74,40 @@ data class RutinasUiState(
      * del borrador y no del día guardado.
      */
     val editor: DiaEditorUiState? = null,
+    /** Aviso o confirmación de export/import de rutinas; `null` = nada pendiente. */
+    val transfer: RutinasTransferUi? = null,
 )
+
+/** Estado visible del export/import de rutinas (GIM-53). */
+sealed interface RutinasTransferUi {
+
+    /** El archivo se leyó y se resolvió; falta confirmar la escritura. */
+    data class Confirm(
+        val fileName: String,
+        val routines: Int,
+        val days: Int,
+        val exercisesCreated: Int,
+        val exercisesReused: Int,
+    ) : RutinasTransferUi
+
+    data class Imported(
+        val routines: Int,
+        val days: Int,
+        val exercisesCreated: Int,
+        val exercisesReused: Int,
+    ) : RutinasTransferUi
+
+    data class Error(val message: String) : RutinasTransferUi
+
+    data object Exported : RutinasTransferUi
+
+    data object ExportFailed : RutinasTransferUi
+
+    data object ReadFailed : RutinasTransferUi
+}
+
+/** Lo que el selector de archivos necesita para guardar el pack. */
+data class RoutineExportReady(val name: String, val json: String)
 
 /**
  * Un plan en la lista.
@@ -135,6 +171,7 @@ class RutinasViewModel internal constructor(
     private val routines: RoutineRepository,
     private val exercises: ExerciseRepository,
     private val settings: SettingsRepository,
+    private val transfer: RoutineTransfer,
     private val scope: CoroutineScope,
     private val newItemId: () -> String = { UUID.randomUUID().toString() },
 ) {
@@ -143,6 +180,7 @@ class RutinasViewModel internal constructor(
         routines = container.routines,
         exercises = container.exercises,
         settings = container.settings,
+        transfer = container.routineTransfer,
         scope = scope,
     )
 
@@ -171,6 +209,10 @@ class RutinasViewModel internal constructor(
      * en la base en [saveEdit], y sólo si `validateDay` no encuentra nada.
      */
     private var draft: List<DayItem>? = null
+
+    /** Archivo ya resuelto que espera confirmación para escribir. */
+    private var pendingImport: RoutineImportPreview.Ready? = null
+    private var transferState: RutinasTransferUi? = null
 
     /** El día que resuelve [publish] en la última emisión; el editor trabaja sobre éste. */
     private var selectedDay: RoutineDay? = null
@@ -522,6 +564,109 @@ class RutinasViewModel internal constructor(
         onReady(exportJson(planId))
     }
 
+    // --- export/import de rutinas (GIM-53) ---------------------------------------
+
+    /** Arma el pack con todas las rutinas y lo entrega listo para guardar. */
+    fun exportAll(onReady: (RoutineExportReady) -> Unit) {
+        scope.launch {
+            val json = runCatching { transfer.export() }.getOrNull()
+            if (json == null) {
+                setTransfer(RutinasTransferUi.ExportFailed)
+            } else {
+                onReady(RoutineExportReady(name = transfer.suggestedName(), json = json))
+            }
+        }
+    }
+
+    /** El selector de archivos confirmó que escribió el pack. */
+    fun exportWritten() {
+        setTransfer(RutinasTransferUi.Exported)
+    }
+
+    /** Se canceló o falló la escritura del pack. */
+    fun exportFailed() {
+        setTransfer(RutinasTransferUi.ExportFailed)
+    }
+
+    /** No se pudo leer el archivo elegido (permiso, proveedor roto). */
+    fun readFailed() {
+        setTransfer(RutinasTransferUi.ReadFailed)
+    }
+
+    /**
+     * Lee el archivo en segundo plano y lo resuelve contra el catálogo. Con errores no
+     * se escribe nada; con un preview válido la pantalla pide confirmación.
+     */
+    fun previewImport(fileName: String, text: String) {
+        scope.launch {
+            when (val preview = transfer.preview(text)) {
+                is RoutineImportPreview.Invalid -> {
+                    setTransfer(RutinasTransferUi.Error(preview.message))
+                }
+
+                is RoutineImportPreview.Ready -> {
+                    pendingImport = preview
+                    setTransfer(
+                        RutinasTransferUi.Confirm(
+                            fileName = fileName,
+                            routines = preview.sourceRoutines,
+                            days = preview.routines.sumOf { it.days.size },
+                            exercisesCreated = preview.newExercises.size,
+                            exercisesReused = preview.reusedExercises,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    /** Escribe el preview confirmado y selecciona la primera rutina importada. */
+    fun confirmImport() {
+        val preview = pendingImport ?: return
+        scope.launch {
+            when (val outcome = transfer.import(preview)) {
+                is RoutineImportOutcome.Imported -> {
+                    pendingImport = null
+                    pendingPlanId = outcome.firstRoutineId
+                    pendingDayId = null
+                    selectedPlanId = outcome.firstRoutineId
+                    selectedDayId = null
+                    transferState = RutinasTransferUi.Imported(
+                        routines = outcome.routines,
+                        days = outcome.days,
+                        exercisesCreated = outcome.exercisesCreated,
+                        exercisesReused = outcome.exercisesReused,
+                    )
+                    republish()
+                }
+
+                is RoutineImportOutcome.Failed -> {
+                    setTransfer(RutinasTransferUi.Error(outcome.message))
+                }
+            }
+        }
+    }
+
+    /** Cierra el aviso o cancela la confirmación pendiente. */
+    fun dismissTransfer() {
+        pendingImport = null
+        setTransfer(null)
+    }
+
+    private fun setTransfer(value: RutinasTransferUi?) {
+        transferState = value
+        republish()
+    }
+
+    private fun republish() {
+        val data = lastData
+        if (data != null) {
+            publish(data)
+        } else {
+            _state.value = _state.value.copy(transfer = transferState)
+        }
+    }
+
     // --- proyección --------------------------------------------------------------
 
     private fun publish(data: RutinasData) {
@@ -534,7 +679,12 @@ class RutinasViewModel internal constructor(
             pendingDayId = null
             selectedDay = null
             clearDraft()
-            _state.value = RutinasUiState(loading = false, hasPlans = false, canDeletePlan = false)
+            _state.value = RutinasUiState(
+                loading = false,
+                hasPlans = false,
+                canDeletePlan = false,
+                transfer = transferState,
+            )
             return
         }
 
@@ -579,6 +729,7 @@ class RutinasViewModel internal constructor(
             } else {
                 null
             },
+            transfer = transferState,
         )
     }
 

@@ -330,6 +330,15 @@ acceso a Entrenar como destino modal (no se pierde por accidente: pide confirmac
   con `updated_at`).
 - `export_plan`: mismo formato que la web (`app: "rutinas-gimnasio", tipo: "plan", version: 1`)
   para no romper compatibilidad.
+- `export_routines`: pack propio re-importable
+  `{schema: "gimcheck", kind: "routines", version: 1, exportedAt, muscles, exercises,
+  routines}`. Lleva sólo el catálogo que usan las rutinas elegidas, conserva ids, días,
+  ítems, descansos por ítem y reps objetivo. No incluye sesiones ni métricas: para eso está
+  el backup completo.
+- `import_routines`: acepta el pack propio, un plan de la web (`tipo: "plan"`) o un backup
+  completo, y **agrega** las rutinas sin borrar las existentes ni tocar el historial.
+  Músculos y ejercicios se reutilizan por id o nombre normalizado; si el nombre ya existe,
+  se usa el del usuario. Importar dos veces crea copias con nombre "… (importada)".
 - `import_web`: acepta el JSON completo de la web (`rutinas-gym-v1`, hasta v21) y lo convierte
   al modelo nuevo (mantiene ids, migra `secondary` a tabla, `drops/trans/warm` a ajustes).
   **Requisito del dueño: no perder los datos que ya tiene en el navegador.**

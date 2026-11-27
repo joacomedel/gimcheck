@@ -170,7 +170,7 @@
     <string name="rutinas_duplicar">Duplicar</string>
     <string name="rutinas_renombrar">Renombrar</string>
     <string name="rutinas_eliminar">Eliminar</string>
-    <string name="rutinas_exportar">Exportar</string>
+    <string name="rutinas_exportar">Exportar plan</string>
     <string name="rutinas_plan_meta">%1$s · %2$s series · %3$s</string>
     <string name="rutinas_plan_unico">Es el único plan: no se puede eliminar.</string>
     <string name="rutinas_eliminar_plan_pregunta">¿Eliminar «%1$s» con sus días e ítems?</string>
@@ -186,6 +186,26 @@
     <string name="rutinas_nombre">Nombre</string>
     <string name="accion_guardar">Guardar</string>
     <string name="rutinas_item_meta">%1$s · %2$s</string>
+
+    <!--
+      Export/import de rutinas (GIM-53): el pack incluye días, ítems y el catálogo que
+      usan; el import es aditivo y no toca el historial.
+    -->
+    <string name="rutinas_transferir">Transferir</string>
+    <string name="rutinas_importar">Importar</string>
+    <string name="rutinas_exportar_todas">Exportar todas</string>
+    <string name="rutinas_transferir_nota">Un archivo con todas tus rutinas, días y ejercicios. Sirve para pasarlas a otro teléfono o guardarlas.</string>
+    <string name="rutinas_importar_titulo">Importar rutinas de “%1$s”</string>
+    <string name="rutinas_importar_texto">Se van a agregar %1$d rutinas con %2$d días. %3$d ejercicios nuevos y %4$d ya existentes. Tus rutinas actuales no se tocan. ¿Seguir?</string>
+    <string name="rutinas_importar_confirmar">Importar</string>
+    <string name="rutinas_importar_cancelar">Cancelar</string>
+    <string name="rutinas_importado">Listo: %1$d rutinas y %2$d días agregados.</string>
+    <string name="rutinas_importado_ejercicios">También se agregaron %1$d ejercicios nuevos.</string>
+    <string name="rutinas_import_error">No se pudo importar: %1$s</string>
+    <string name="rutinas_import_lectura">No se pudo leer el archivo elegido.</string>
+    <string name="rutinas_exportado">Rutinas exportadas.</string>
+    <string name="rutinas_export_fallo">No se pudo guardar el archivo.</string>
+    <string name="rutinas_aviso_cerrar">Cerrar</string>
 
     <!--
       Editor del día (GIM-17): agrega, mueve, quita y ajusta ítems sobre una copia; el

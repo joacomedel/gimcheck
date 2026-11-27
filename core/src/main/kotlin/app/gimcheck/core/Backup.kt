@@ -179,8 +179,21 @@ fun exportBackup(
     stamp: String = exportedAt,
     pretty: Boolean = false,
 ): String {
-    val settings = snapshot.settings
-    val file = BackupFile(
+    val file = snapshot.toBackupFile(exportedAt, stamp)
+    val json = if (pretty) prettyBackupJson else backupJson
+    return json.encodeToString(BackupFile.serializer(), file)
+}
+
+/**
+ * Materializa el snapshot como [BackupFile]. Lo usan el backup completo y el pack de
+ * rutinas ([RoutinePack.kt]): el mapeo de dominio a DTO vive en un solo lugar.
+ */
+internal fun DomainSnapshot.toBackupFile(
+    exportedAt: String,
+    stamp: String = exportedAt,
+): BackupFile {
+    val settings = this.settings
+    return BackupFile(
         exportedAt = exportedAt,
         settings = BackupSettings(
             updatedAt = stamp,
@@ -195,7 +208,7 @@ fun exportBackup(
             e1rmFormula = settings.e1rmFormula,
             bodyweightVolume = settings.bodyweightVolume,
         ),
-        muscles = snapshot.muscles.map {
+        muscles = this.muscles.map {
             BackupMuscle(
                 id = it.id,
                 name = it.name,
@@ -204,7 +217,7 @@ fun exportBackup(
                 updatedAt = stamp,
             )
         },
-        exercises = snapshot.exercises.map {
+        exercises = this.exercises.map {
             BackupExercise(
                 id = it.id,
                 name = it.name,
@@ -219,7 +232,7 @@ fun exportBackup(
                 updatedAt = stamp,
             )
         },
-        routines = snapshot.routines.map { routine ->
+        routines = this.routines.map { routine ->
             BackupRoutine(
                 id = routine.id,
                 name = routine.name,
@@ -250,7 +263,7 @@ fun exportBackup(
                 },
             )
         },
-        sessions = snapshot.sessions.map { session ->
+        sessions = this.sessions.map { session ->
             BackupSession(
                 id = session.id,
                 startedAt = session.startedAt.toString(),
@@ -274,7 +287,7 @@ fun exportBackup(
                 },
             )
         },
-        bodyMetrics = snapshot.bodyMetrics.map {
+        bodyMetrics = this.bodyMetrics.map {
             BackupBodyMetric(
                 date = it.date.toString(),
                 weightKg = it.weightKg,
@@ -284,8 +297,6 @@ fun exportBackup(
             )
         },
     )
-    val json = if (pretty) prettyBackupJson else backupJson
-    return json.encodeToString(BackupFile.serializer(), file)
 }
 
 // --- import -------------------------------------------------------------------
@@ -316,7 +327,7 @@ private fun migrateBackup(file: BackupFile): BackupFile = when (file.version) {
     )
 }
 
-private fun validateBackup(file: BackupFile): BackupFile {
+internal fun validateBackup(file: BackupFile): BackupFile {
     if (file.schema != BACKUP_SCHEMA) {
         throw ImportException(
             ImportError.UnsupportedVersion(file.schema, file.version, "se esperaba schema $BACKUP_SCHEMA"),

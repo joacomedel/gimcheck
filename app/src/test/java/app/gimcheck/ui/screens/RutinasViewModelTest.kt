@@ -12,6 +12,7 @@ import app.gimcheck.data.repository.RoutineRepository
 import app.gimcheck.data.repository.SettingsRepository
 import app.gimcheck.data.seed.SeedImporter
 import app.gimcheck.data.settings.AppSettings
+import app.gimcheck.data.transfer.RoutineTransfer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,6 +23,8 @@ import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -55,6 +58,7 @@ class RutinasViewModelTest {
     private lateinit var routines: RoutineRepository
     private lateinit var exercises: ExerciseRepository
     private lateinit var settings: SettingsRepository
+    private lateinit var transfer: RoutineTransfer
     private lateinit var scope: CoroutineScope
     private lateinit var viewModel: RutinasViewModel
 
@@ -66,7 +70,8 @@ class RutinasViewModelTest {
         settings = SettingsRepository(db)
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         SeedImporter(db).seedIfEmpty(seedJson)
-        viewModel = RutinasViewModel(routines, exercises, settings, scope)
+        transfer = RoutineTransfer(db, routines, exercises, settings)
+        viewModel = RutinasViewModel(routines, exercises, settings, transfer, scope)
         viewModel.start()
     }
 
@@ -247,5 +252,27 @@ class RutinasViewModelTest {
         assertTrue(json.contains("\"plan\""))
         assertTrue(json.contains("\"ejercicios\""))
         assertTrue(json.contains("\"resumen\""))
+    }
+
+    @Test
+    fun `importar un pack agrega la rutina y la deja seleccionada`() = runBlocking {
+        val original = routines.allRoutines().first()
+        val pack = transfer.export(setOf(original.id))
+        viewModel.previewImport("rutina.json", pack)
+
+        val confirm = withTimeout(5_000) {
+            viewModel.state.first { it.transfer is RutinasTransferUi.Confirm }
+        }
+        assertEquals(1, (confirm.transfer as RutinasTransferUi.Confirm).routines)
+
+        viewModel.confirmImport()
+        val after = withTimeout(5_000) {
+            viewModel.state.first {
+                it.transfer is RutinasTransferUi.Imported && it.plans.size == 3
+            }
+        }
+        val importedId = requireNotNull(after.selectedPlanId)
+        assertNotEquals(original.id, importedId)
+        assertNotNull(after.plans.firstOrNull { it.id == importedId })
     }
 }

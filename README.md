@@ -14,12 +14,13 @@ teléfono del dueño (QA) y el release por tag.
 
 | Pieza | Estado |
 |---|---|
-| `:core` (dominio Kotlin puro) | **completo para v1**: modelo y migrador de la web (`v1..v21`), `dayStats`, volumen por músculo, superseries, e1RM (Epley/Brzycki) + PR, sesión guiada histórica, validadores, export/import JSON y agregados de Progreso. **128 tests**, paridad con la web verificada (`docs/paridad-web.md`) |
+| `:core` (dominio Kotlin puro) | **completo para v1**: modelo y migrador de la web (`v1..v21`), `dayStats`, volumen por músculo, superseries, e1RM (Epley/Brzycki) + PR, sesión guiada histórica, validadores, export/import JSON (backup, plan y **pack de rutinas**) y agregados de Progreso. **137 tests**, paridad con la web verificada (`docs/paridad-web.md`) |
 | `:app` (Android) | Room v1 + 5 repositorios, seed con las dos rutinas del dueño, 9 pantallas, 6 ViewModels, cronómetro de descanso en primer plano y alerta en tres capas |
 | Pantallas | **9 de 9 implementadas**; la auditoría de diseño formal es GIM-15 |
 | Gráficos | Canvas propio (`ui/chart`): línea con área y PR, barras de volumen, barras por músculo con `Meter` |
 | Entrenar | **entrenamiento libre** (ADR 0007): sin "empezar sesión", selector de ejercicio, superserie como salto puntual, descanso persistido por deadline |
 | Historial | lista por semana ISO, detalle, corrección de series y borrado |
+| Rutinas | planes, días, editor, duplicar/eliminar y **transferencia**: exportar todas, exportar un plan e importar un pack, un plan de la web o un backup |
 | Ajustes | 19 ajustes de §8 conectados, tema, alertas y **export de backup**; import del backup de la web |
 | Release / QA | pendientes: GIM-30 (tag y APK de release), GIM-31 (QA en el teléfono), GIM-32 (guía de instalación) |
 | CI | `:core:test` + `:app:testDebugUnitTest` + `:app:lintDebug` + `:app:assembleDebug` y artifact `gimcheck-debug.apk` |
@@ -131,21 +132,22 @@ Detalle de todo esto, mediciones y pruebas de cada guarda: [`docs/build.md`](doc
 
 ## Las 9 pantallas
 
-Ninguna está implementada. El contrato visual (tokens, componentes, jerarquía) está en
-[`docs/diseno.md`](docs/diseno.md); el contenido funcional en
+Las 9 están implementadas; lo que falta es el QA visual en el teléfono (GIM-31) y la
+auditoría de diseño contra el contrato (GIM-15). El contrato visual (tokens, componentes,
+jerarquía) está en [`docs/diseno.md`](docs/diseno.md); el contenido funcional en
 [`docs/especificacion.md`](docs/especificacion.md) §6.
 
 | # | Pantalla | Qué hace | Estado |
 |---|---|---|---|
-| 1 | Hoy | rutina y día elegidos, peso corporal del día, empezar/continuar sesión, últimos 3 entrenamientos | sin empezar |
-| 2 | Entrenar | bloque actual, superserie guiada, peso × reps, "Serie hecha", cuenta regresiva de descanso | sin empezar |
-| 3 | Descanso terminado | pantalla completa que aparece sola: próximo ejercicio + "Empezar" | sin empezar |
-| 4 | Rutinas | planes, días, ítems del día, advertencias de superserie, duplicar/eliminar, exportar | sin empezar |
-| 5 | Ejercicios | catálogo con filtro por músculo, ficha editable, lista de músculos | sin empezar |
-| 6 | Progreso | PR/e1RM, volumen, peso corporal, series por músculo (Canvas propio) | sin empezar |
-| 7 | Historial | sesiones por fecha con volumen/duración/series, detalle corregible | sin empezar |
-| 8 | Comparar | dos planes lado a lado (paridad con la web) | sin empezar |
-| 9 | Ajustes | tiempos, rango semanal, alertas, fórmula e1RM, unidades, backup/restore, tema | sin empezar |
+| 1 | Hoy | rutina y día, peso corporal del día, entrenamiento abierto, últimos 3 entrenamientos | implementada |
+| 2 | Entrenar | entrenamiento libre (ADR 0007): selector de ejercicio, peso × reps, "Serie hecha", descanso con ±15 s | implementada |
+| 3 | Descanso terminado | aparece sola al vencer el descanso, con la alerta en las tres capas | implementada; falta QA con pantalla apagada |
+| 4 | Rutinas | planes, días, editor, advertencias, duplicar/eliminar y export/import de rutinas | implementada |
+| 5 | Ejercicios | catálogo con búsqueda, filtro, alta/edición y músculos secundarios | implementada |
+| 6 | Progreso | PR/e1RM, volumen, peso corporal, series por músculo (Canvas propio) | implementada |
+| 7 | Historial | sesiones por semana ISO con volumen/duración/series, detalle corregible | implementada |
+| 8 | Comparar | dos planes lado a lado (paridad con la web) | implementada |
+| 9 | Ajustes | tiempos, rango semanal, alertas, fórmula e1RM, tema, backup | implementada; unidades kg/lb es GIM-50 |
 
 Navegación: barra inferior con 5 destinos (Hoy, Rutinas, Progreso, Historial, Ajustes);
 Entrenar es modal y pide confirmación al salir.

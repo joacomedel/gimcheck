@@ -3,6 +3,10 @@ package app.gimcheck.ui.screens
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,7 +27,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -58,6 +64,9 @@ import app.gimcheck.ui.theme.GimSpacing
 import app.gimcheck.ui.theme.GimStroke
 import app.gimcheck.ui.theme.GimText
 import app.gimcheck.ui.theme.GimTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 /**
@@ -106,9 +115,55 @@ fun RutinasScreen(
 
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
+    var pendingExport by remember { mutableStateOf<RoutineExportReady?>(null) }
+
+    val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val text = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                }.getOrNull()
+            }
+            if (text == null) {
+                viewModel.readFailed()
+            } else {
+                viewModel.previewImport(displayName(context, uri), text)
+            }
+        }
+    }
+
+    val createFile = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri: Uri? ->
+        val ready = pendingExport
+        pendingExport = null
+        if (uri == null || ready == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val written = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                        writer.write(ready.json)
+                    } != null
+                }.getOrDefault(false)
+            }
+            if (written) viewModel.exportWritten() else viewModel.exportFailed()
+        }
+    }
 
     RutinasContent(
         state = state,
+        onImportRoutines = {
+            openFile.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+        },
+        onExportAll = {
+            viewModel.exportAll { ready ->
+                pendingExport = ready
+                createFile.launch(ready.name)
+            }
+        },
+        onConfirmImport = viewModel::confirmImport,
+        onDismissTransfer = viewModel::dismissTransfer,
         onSelectPlan = viewModel::selectPlan,
         onCreatePlan = viewModel::createPlan,
         onDuplicatePlan = viewModel::duplicatePlan,
@@ -166,6 +221,10 @@ private data class DiaEditorActions(
 @Composable
 private fun RutinasContent(
     state: RutinasUiState,
+    onImportRoutines: () -> Unit,
+    onExportAll: () -> Unit,
+    onConfirmImport: () -> Unit,
+    onDismissTransfer: () -> Unit,
     onSelectPlan: (String) -> Unit,
     onCreatePlan: () -> Unit,
     onDuplicatePlan: (String) -> Unit,
@@ -184,6 +243,35 @@ private fun RutinasContent(
     modifier: Modifier = Modifier,
 ) {
     val colors = GimTheme.colors
+
+    (state.transfer as? RutinasTransferUi.Confirm)?.let { confirm ->
+        AlertDialog(
+            onDismissRequest = onDismissTransfer,
+            title = { Text(stringResource(R.string.rutinas_importar_titulo, confirm.fileName)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.rutinas_importar_texto,
+                        confirm.routines,
+                        confirm.days,
+                        confirm.exercisesCreated,
+                        confirm.exercisesReused,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirmImport) {
+                    Text(stringResource(R.string.rutinas_importar_confirmar))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissTransfer) {
+                    Text(stringResource(R.string.rutinas_importar_cancelar))
+                }
+            },
+        )
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -208,6 +296,36 @@ private fun RutinasContent(
         }
 
         if (state.loading) return@LazyColumn
+
+        item(key = "transfer-header") {
+            SectionHeader(
+                title = stringResource(R.string.rutinas_transferir),
+                action = stringResource(R.string.rutinas_importar),
+                onAction = onImportRoutines,
+            )
+        }
+
+        item(key = "transfer-actions") {
+            Column(verticalArrangement = Arrangement.spacedBy(GimSpacing.xs)) {
+                ActionText(
+                    label = stringResource(R.string.rutinas_exportar_todas),
+                    color = colors.accent,
+                    onClick = onExportAll,
+                )
+                Text(
+                    text = stringResource(R.string.rutinas_transferir_nota),
+                    style = GimText.detalle,
+                    color = colors.muted,
+                )
+            }
+        }
+
+        val notice = state.transfer
+        if (notice != null && notice !is RutinasTransferUi.Confirm) {
+            item(key = "transfer-notice") {
+                TransferNotice(notice = notice, onDismiss = onDismissTransfer)
+            }
+        }
 
         item(key = "planes-header") {
             SectionHeader(
@@ -955,6 +1073,65 @@ private fun RenameField(
         }
     }
 }
+
+/** Aviso del export/import de rutinas: resultado, error o "listo". */
+@Composable
+private fun TransferNotice(notice: RutinasTransferUi, onDismiss: () -> Unit) {
+    if (notice is RutinasTransferUi.Confirm) return
+    val colors = GimTheme.colors
+    val error = notice is RutinasTransferUi.Error ||
+        notice is RutinasTransferUi.ExportFailed ||
+        notice is RutinasTransferUi.ReadFailed
+    val text = when (notice) {
+        is RutinasTransferUi.Imported -> {
+            val base = stringResource(R.string.rutinas_importado, notice.routines, notice.days)
+            if (notice.exercisesCreated > 0) {
+                base + " " + stringResource(
+                    R.string.rutinas_importado_ejercicios,
+                    notice.exercisesCreated,
+                )
+            } else {
+                base
+            }
+        }
+
+        is RutinasTransferUi.Error ->
+            stringResource(R.string.rutinas_import_error, notice.message)
+
+        RutinasTransferUi.ExportFailed -> stringResource(R.string.rutinas_export_fallo)
+        RutinasTransferUi.ReadFailed -> stringResource(R.string.rutinas_import_lectura)
+        RutinasTransferUi.Exported -> stringResource(R.string.rutinas_exportado)
+        is RutinasTransferUi.Confirm -> return
+    }
+    val shape = RoundedCornerShape(GimRadius.control)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.surface2, shape)
+            .border(GimStroke.border, if (error) colors.bad else colors.line, shape)
+            .padding(GimSpacing.m),
+        verticalArrangement = Arrangement.spacedBy(GimSpacing.xs),
+    ) {
+        Text(
+            text = text,
+            style = GimText.detalle,
+            color = if (error) colors.bad else colors.ink2,
+        )
+        ActionText(
+            label = stringResource(R.string.rutinas_aviso_cerrar),
+            color = colors.ink2,
+            onClick = onDismiss,
+        )
+    }
+}
+
+/** Nombre visible del archivo elegido; el proveedor puede no exponerlo. */
+private fun displayName(context: Context, uri: Uri): String = runCatching {
+    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+        ?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+}.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/') ?: "rutinas.json"
 
 /** Acción de texto de 48 dp de alto (el mismo patrón que la acción de `SectionHeader`). */
 @Composable

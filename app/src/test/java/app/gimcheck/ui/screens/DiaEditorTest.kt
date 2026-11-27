@@ -15,6 +15,7 @@ import app.gimcheck.data.repository.RoutineRepository
 import app.gimcheck.data.repository.SettingsRepository
 import app.gimcheck.data.seed.SeedImporter
 import app.gimcheck.data.settings.AppSettings
+import app.gimcheck.data.transfer.RoutineTransfer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -71,7 +72,13 @@ class DiaEditorTest {
         settings = SettingsRepository(db)
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         SeedImporter(db).seedIfEmpty(seedJson)
-        viewModel = RutinasViewModel(routines, exercises, settings, scope)
+        viewModel = RutinasViewModel(
+            routines,
+            exercises,
+            settings,
+            RoutineTransfer(db, routines, exercises, settings),
+            scope,
+        )
         viewModel.start()
     }
 

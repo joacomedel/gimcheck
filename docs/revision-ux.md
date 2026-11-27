@@ -57,6 +57,40 @@ app, no sólo los que faltan en la lista de tickets.
 | **GIM-51** | abierto | Restaurar un backup propio (hoy sólo se exporta; el import existente es el de la web) |
 | **GIM-52** | abierto | Búsqueda/filtro en Historial: la lista por semana se hace larga con muchos meses |
 
+## Transferencia de rutinas (GIM-53, 2026-11-27)
+
+El dueño pidió un exportador y un importador. Antes sólo existía "Exportar plan" en el
+formato de la web, que servía para pegarlo en la web pero **no se podía volver a importar**
+(el import de Ajustes lo rechazaba por no ser un backup completo). Ahora Rutinas tiene una
+sección **Transferir**:
+
+- **Exportar todas** → `gimcheck-rutinas-AAAA-MM-DD.json`, un pack propio con las rutinas,
+  sus días/ítems y sólo los músculos y ejercicios que usan. Se guarda con el selector del
+  sistema, sin permisos de storage.
+- **Importar** → acepta ese pack, un plan exportado de la web (`tipo: "plan"`) o un backup
+  completo. Muestra cuántas rutinas, días y ejercicios nuevos va a agregar y pide
+  confirmación. **No borra nada**: las rutinas existentes y el historial quedan intactos.
+- Los músculos y ejercicios se reutilizan por id o por nombre normalizado (sin acentos ni
+  mayúsculas). Importar dos veces no pisa: la segunda copia se llama "… (importada)".
+- Las rutinas importadas quedan seleccionadas al terminar.
+
+## Quality of life que ya está en la app
+
+Vale la pena tenerlo presente al probar, porque son las cosas que hacen que el día a día
+no duela:
+
+- **Pantalla encendida** durante el entrenamiento (`keepScreenOn`, ajuste real).
+- **Precarga del último peso/reps** del ejercicio (`autoFillLast`), y si no hay historial,
+  el objetivo del ítem.
+- **Descanso con ±15 s, saltar y repetir aviso**; el deadline se persiste, así que cerrar
+  la app no pierde la cuenta.
+- **Peso corporal del día** en un toque desde Hoy, con corrección.
+- **Entrenamiento abierto** visible en Hoy ("Seguir entrenando · N min").
+- **Tema** sistema/claro/oscuro y **fórmula e1RM** Epley/Brzycki desde Ajustes.
+- **Historial corregible**: editar peso/reps, borrar una serie o un entrenamiento.
+- **Export de backup** completo y **export/import de rutinas**; el import de la web sigue
+  disponible para no perder los datos del navegador.
+
 ## Deudas menores (no bloquean usar la app)
 
 - **Unidades lb**: el modelo y los ajustes ya tienen `unit`, pero toda la UI muestra kg.
