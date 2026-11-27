@@ -547,7 +547,13 @@ class EntrenarViewModel internal constructor(
 
     internal suspend fun tickNow() {
         val deadline = restDeadline ?: return
-        if (nowInstant().isBefore(deadline)) return
+        if (nowInstant().isBefore(deadline)) {
+            // La pantalla dibuja `rest.remainingSeconds`, no un contador propio: si el
+            // tick no republica, la cuenta queda congelada hasta que vence. Se actualiza
+            // sólo el descanso para no reconstruir todo el estado cada segundo.
+            _state.value = _state.value.copy(rest = restUi())
+            return
+        }
         clearRest(cancelGateway = false)
         restGateway.onRestFinished()
         restDone = true

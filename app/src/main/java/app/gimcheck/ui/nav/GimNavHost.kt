@@ -53,12 +53,18 @@ fun GimNavHost(
     ) {
         composable(GimDestination.HOY.route) {
             HoyScreen(
-                onStartSession = { navController.navigate(GimDestination.ENTRENAR.route) },
+                onStartSession = { navController.navigateToTraining() },
                 onOpenRutinas = { navController.navigateToBottomBar(GimDestination.RUTINAS) },
             )
         }
         composable(GimDestination.ENTRENAR.route) {
-            EntrenarScreen(onExit = { navController.popBackStack() })
+            // Salir del entrenamiento popea **Entrenar**, no "una pantalla": un doble
+            // toque en "Salir" no puede llevarse también a Hoy y dejar el NavHost vacío.
+            EntrenarScreen(
+                onExit = {
+                    navController.popBackStack(GimDestination.ENTRENAR.route, inclusive = true)
+                },
+            )
         }
         composable(GimDestination.DESCANSO.route) {
             DescansoScreen(
@@ -85,7 +91,7 @@ fun GimNavHost(
         }
         composable(GimDestination.HISTORIAL.route) {
             HistorialScreen(
-                onStartSession = { navController.navigate(GimDestination.ENTRENAR.route) },
+                onStartSession = { navController.navigateToTraining() },
             )
         }
         composable(GimDestination.COMPARAR.route) {
@@ -114,5 +120,15 @@ internal fun NavHostController.navigateToBottomBar(destination: GimDestination) 
         popUpTo(GimDestination.START.route) { saveState = true }
         launchSingleTop = true
         restoreState = true
+    }
+}
+
+/**
+ * Abre Entrenar sin apilar una copia si ya está abierta: dos toques rápidos en "Entrenar"
+ * no pueden dejar dos pantallas que después haya que "salir" dos veces.
+ */
+internal fun NavHostController.navigateToTraining() {
+    navigate(GimDestination.ENTRENAR.route) {
+        launchSingleTop = true
     }
 }

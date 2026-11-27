@@ -48,6 +48,7 @@ import app.gimcheck.ui.theme.GimSpacing
 import app.gimcheck.ui.theme.GimStroke
 import app.gimcheck.ui.theme.GimText
 import app.gimcheck.ui.theme.GimTheme
+import kotlinx.coroutines.delay
 
 /**
  * **Hoy** — §6 fila 1 y `docs/diseno.md` §8 #1.
@@ -88,6 +89,17 @@ fun HoyScreen(
     }
 
     val state by viewModel.state.collectAsState()
+
+    // "Seguir entrenando (N min)" es un dato vivo: Room no emite cada minuto, así que
+    // se refresca con un pulso mientras hay un entrenamiento abierto.
+    LaunchedEffect(state.active != null) {
+        if (state.active == null) return@LaunchedEffect
+        while (true) {
+            delay(30_000)
+            viewModel.refreshActive()
+        }
+    }
+
     HoyContent(
         state = state,
         onSelectDay = viewModel::selectDay,

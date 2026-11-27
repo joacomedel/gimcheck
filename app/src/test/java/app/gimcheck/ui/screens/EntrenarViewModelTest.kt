@@ -295,6 +295,28 @@ class EntrenarViewModelTest {
     }
 
     @Test
+    fun `el cronometro de la pantalla baja con cada tick`() = runBlocking {
+        startViewModel()
+        awaitState { it.phase == EntrenarPhase.ACTIVE }
+        viewModel.pickExercise("e3")
+        awaitState { it.exerciseName == "Remo" }
+        log()
+        val started = awaitState { it.rest != null }
+        val initial = requireNotNull(started.rest).remainingSeconds
+        assertEquals(120, initial)
+
+        advance(1)
+        viewModel.tickNow()
+        val oneSecond = awaitState { it.rest?.remainingSeconds == initial - 1 }
+        assertEquals(initial - 1, requireNotNull(oneSecond.rest).remainingSeconds)
+
+        advance(200)
+        viewModel.tickNow()
+        val finished = awaitState { it.rest == null && it.restDone }
+        assertTrue(finished.canLogSet)
+    }
+
+    @Test
     fun `el descanso se retoma al reabrir el entrenamiento`() = runBlocking {
         startViewModel()
         awaitState { it.phase == EntrenarPhase.ACTIVE }

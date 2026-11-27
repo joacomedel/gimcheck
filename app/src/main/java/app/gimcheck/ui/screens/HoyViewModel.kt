@@ -206,6 +206,14 @@ class HoyViewModel internal constructor(
         lastData?.let(::publish)
     }
 
+    /**
+     * Republica con el reloj actual. La pantalla lo llama cada 30 s mientras hay un
+     * entrenamiento abierto para que "Seguir entrenando (N min)" no quede congelado.
+     */
+    fun refreshActive() {
+        lastData?.let(::publish)
+    }
+
     /** Borrador del peso corporal (paso 0,1 kg). No escribe hasta [saveBodyWeight]. */
     fun setBodyWeight(value: Double) {
         val rounded = roundTenth(value)
