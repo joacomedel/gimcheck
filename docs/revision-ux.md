@@ -54,6 +54,20 @@ app, no sólo los que faltan en la lista de tickets.
 | **GIM-15** | abierto | Auditoría de diseño de las 9 pantallas: ahora que existen, se puede hacer contra `docs/diseno.md` |
 | **GIM-41 / GIM-42** | obsoletos | El ADR 0007 vigente es `docs/adr/0007-entrenamiento-libre.md` y GIM-49 ya implementó el entrenamiento libre. Deberían cancelarse o reescribirse: piden un "selector rutina → día → ejercicio" y una rotación por rondas que el ADR vigente descartó |
 
+## Deudas menores (no bloquean usar la app)
+
+- **Unidades lb**: el modelo y los ajustes ya tienen `unit`, pero toda la UI muestra kg.
+  Un toggle que no convierte sería peor que no tenerlo; queda como ticket aparte.
+- **Restaurar un backup propio**: se exporta el JSON del contrato, pero el import de
+  Ajustes sigue siendo el de la web. Falta un import que reemplace el estado completo
+  (con sesiones y métricas).
+- **RPE y notas por serie**: la tabla `session_set` los guarda y el backup los lleva,
+  pero Entrenar no los pide. No están en el MVP del dueño.
+- **Búsqueda en Historial**: con muchos meses, la lista por semana se hace larga. Un
+  filtro por ejercicio/fecha es la próxima mejora natural.
+- **Ver resumen desde Hoy**: el resumen del día ya existe al terminar; desde el
+  entrenamiento abierto se llega saliendo de Entrenar, no hay un acceso directo.
+
 ## Cómo se verificó
 
 - `:core`: `./scripts/check-core.sh` (tests nuevos de `Progress` incluidos).

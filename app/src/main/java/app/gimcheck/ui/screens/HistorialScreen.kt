@@ -199,10 +199,11 @@ private fun HistoryRow(session: HistorialSessionUi, onClick: () -> Unit) {
             Text(text = session.volumeLabel, style = GimText.subtitulo, color = colors.ink, maxLines = 1)
             if (session.prCount > 0) {
                 Text(
-                    text = stringResource(
-                        if (session.prCount == 1) R.string.hist_pr_uno else R.string.hist_prs,
-                        session.prCount,
-                    ),
+                    text = if (session.prCount == 1) {
+                        stringResource(R.string.hist_pr_uno)
+                    } else {
+                        stringResource(R.string.hist_prs, session.prCount)
+                    },
                     style = GimText.etiqueta,
                     color = colors.good,
                     maxLines = 1,
@@ -281,10 +282,11 @@ private fun HistoryDetail(
             }
             if (detail.prCount > 0) {
                 Text(
-                    text = stringResource(
-                        if (detail.prCount == 1) R.string.hist_pr_uno else R.string.hist_prs,
-                        detail.prCount,
-                    ),
+                    text = if (detail.prCount == 1) {
+                        stringResource(R.string.hist_pr_uno)
+                    } else {
+                        stringResource(R.string.hist_prs, detail.prCount)
+                    },
                     style = GimText.detalle,
                     color = colors.good,
                     modifier = Modifier.padding(top = GimSpacing.s),

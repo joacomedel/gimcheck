@@ -288,6 +288,7 @@ class EjerciciosViewModel internal constructor(
         scope.launch {
             exercises.saveExercise(exercise)
             editing = null
+            lastData?.let(::publish)
         }
     }
 
@@ -304,6 +305,7 @@ class EjerciciosViewModel internal constructor(
     fun delete() {
         val id = editing?.id ?: return
         editing = null
+        lastData?.let(::publish)
         scope.launch { exercises.deleteExercise(id) }
     }
 
@@ -330,6 +332,7 @@ class EjerciciosViewModel internal constructor(
                 scope.launch {
                     exercises.saveMuscle(muscle)
                     newMuscleName = ""
+                    lastData?.let(::publish)
                 }
             }
         }

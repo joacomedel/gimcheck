@@ -15,6 +15,9 @@ import app.gimcheck.data.repository.RoutineRepository
 import app.gimcheck.data.repository.SessionRepository
 import app.gimcheck.data.repository.SettingsRepository
 import app.gimcheck.data.settings.AppSettings
+import app.gimcheck.data.settings.showsScreen
+import app.gimcheck.data.settings.sounds
+import app.gimcheck.data.settings.vibrates
 import app.gimcheck.data.settings.RestSound
 import app.gimcheck.data.settings.ThemeMode
 import app.gimcheck.data.transfer.BackupExporter

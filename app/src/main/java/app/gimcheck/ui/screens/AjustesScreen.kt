@@ -4,11 +4,13 @@ import android.app.Application
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -268,7 +270,12 @@ fun AjustesScreen(
             style = GimText.etiqueta,
             color = GimTheme.colors.muted,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(GimSpacing.s)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(GimSpacing.s),
+        ) {
             ChipFilter(
                 label = "Epley",
                 selected = settings.e1rmFormula == E1rmFormula.EPLEY,
@@ -358,7 +365,12 @@ fun AjustesScreen(
                 style = GimText.etiqueta,
                 color = GimTheme.colors.muted,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(GimSpacing.s)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(GimSpacing.s),
+            ) {
                 RestSound.entries.forEach { sound ->
                     ChipFilter(
                         label = soundLabel(sound),
@@ -374,7 +386,12 @@ fun AjustesScreen(
                 style = GimText.etiqueta,
                 color = GimTheme.colors.muted,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(GimSpacing.s)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(GimSpacing.s),
+            ) {
                 RestVibration.entries.forEach { vibration ->
                     ChipFilter(
                         label = vibrationLabel(vibration),
@@ -398,7 +415,12 @@ fun AjustesScreen(
             style = GimText.etiqueta,
             color = GimTheme.colors.muted,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(GimSpacing.s)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(GimSpacing.s),
+        ) {
             ChipFilter(
                 label = stringResource(R.string.ph_tema_sistema),
                 selected = settings.theme == ThemeMode.SYSTEM,

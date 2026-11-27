@@ -207,6 +207,7 @@ class HistorialViewModel internal constructor(
         scope.launch {
             sessions.updateSet(id, roundTenth(editWeight), editReps.toInt().coerceAtLeast(0), rpe = null)
             editingSetId = null
+            lastData?.let(::publish)
         }
     }
 
@@ -224,6 +225,7 @@ class HistorialViewModel internal constructor(
         val id = editingSetId ?: return
         confirmingDeleteSet = false
         editingSetId = null
+        lastData?.let(::publish)
         scope.launch { sessions.deleteSet(id) }
     }
 
@@ -241,6 +243,7 @@ class HistorialViewModel internal constructor(
         val id = openSessionId ?: return
         confirmingDeleteSession = false
         openSessionId = null
+        lastData?.let(::publish)
         scope.launch { sessions.deleteSession(id) }
     }
 
