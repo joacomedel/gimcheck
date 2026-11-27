@@ -39,16 +39,30 @@ class SystemRestOverlay(context: Context) : RestOverlayPresenter {
         val windowManager = app.getSystemService(WindowManager::class.java) ?: return
         val view = buildView(message, onClick)
         val params = fullScreenParams()
+        // `addView` y la publicación del estado no son atómicos: si un `hideAny`
+        // (MainActivity.onResume, "Ahora no", el test) cae entre medio, antes veía
+        // `active == null` y la ventana quedaba pegada para siempre. Se marca la vista
+        // como "pendiente" antes de agregarla y, si el hide la canceló, se saca acá.
+        synchronized(lock) { pending = view }
         try {
             windowManager.addView(view, params)
-            synchronized(lock) {
-                active = view
-                manager = windowManager
-            }
         } catch (e: RuntimeException) {
             // Sin permiso (revocado entre el chequeo y el addView) o el sistema lo
             // rechaza: queda la notificación, que ya está publicada.
+            synchronized(lock) { if (pending === view) pending = null }
+            return
         }
+        val stillWanted = synchronized(lock) {
+            if (pending === view) {
+                pending = null
+                active = view
+                manager = windowManager
+                true
+            } else {
+                false
+            }
+        }
+        if (!stillWanted) remove(windowManager, view)
     }
 
     override fun hide() = hideAny(app)
@@ -162,12 +176,16 @@ class SystemRestOverlay(context: Context) : RestOverlayPresenter {
 
         private val lock = Any()
         private var active: View? = null
+        private var pending: View? = null
         private var manager: WindowManager? = null
 
         /**
          * Retira el overlay si hay uno puesto. Idempotente y seguro desde cualquier
          * hilo: la app lo llama al volver al frente (`MainActivity.onResume` y
          * [RestDoneActivity.onCreate]) y cada aviso nuevo lo retira antes de dibujar.
+         *
+         * Si un [show] está a mitad de camino, lo cancela: la ventana se agrega igual
+         * (no se puede interrumpir sin bloquear), pero [show] la saca al terminar.
          */
         fun hideAny(context: Context) {
             val view: View?
@@ -177,12 +195,17 @@ class SystemRestOverlay(context: Context) : RestOverlayPresenter {
                 windowManager = manager
                 active = null
                 manager = null
+                pending = null
             }
             if (view == null) return
             val wm = windowManager ?: context.applicationContext
                 .getSystemService(WindowManager::class.java) ?: return
+            remove(wm, view)
+        }
+
+        private fun remove(windowManager: WindowManager, view: View) {
             try {
-                wm.removeViewImmediate(view)
+                windowManager.removeViewImmediate(view)
             } catch (e: RuntimeException) {
                 // Ya no estaba (el sistema lo retiró al morir el proceso).
             }

@@ -9,6 +9,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
+import app.gimcheck.rest.RestAlertCenter
+import app.gimcheck.rest.SystemRestOverlay
 import java.io.File
 import org.junit.Before
 import org.junit.Test
@@ -40,6 +42,11 @@ class EntrenarExitDeviceTest {
 
     @Before
     fun setUp() {
+        // Un aviso de fin de descanso del test anterior (RestAlertDeviceTest) deja una
+        // ventana APPLICATION_OVERLAY encima de todo: UiAutomator vería "Descanso
+        // terminado" y no la pantalla de la app. Se retira antes de empezar.
+        RestAlertCenter.dismiss(app)
+        SystemRestOverlay.hideAny(app)
         shell("pm grant $APP_ID android.permission.POST_NOTIFICATIONS")
         shell("appops set $APP_ID SYSTEM_ALERT_WINDOW allow")
         shell("appops set $APP_ID SCHEDULE_EXACT_ALARM allow")
@@ -115,20 +122,23 @@ class EntrenarExitDeviceTest {
     private fun abort(what: String): Nothing =
         throw AssertionError("$what.\n${screenState()}")
 
-    /** Foco, actividad y jerarquía: lo que hace falta para entender un fallo. */
+    /** Jerarquía primero (lo más útil), después actividad y ventanas visibles. */
     private fun screenState(): String {
-        val focus = shell(
-            "dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp|mResumedActivity'",
-        )
-        val activity = shell("dumpsys activity activities | grep -E 'ResumedActivity|topResumed'")
         val tree = try {
             val file = File(app.cacheDir, "window-dump.xml")
             device.dumpWindowHierarchy(file)
-            file.readText().take(6_000)
+            file.readText().take(4_000)
         } catch (error: Throwable) {
             "no se pudo volcar la jerarquía: $error"
         }
-        return "foco:\n$focus\nactividad:\n$activity\njerarquía:\n$tree"
+        val activity = shell(
+            "dumpsys activity activities | grep -E 'topResumedActivity|ResumedActivity' | head -3",
+        )
+        val windows = shell(
+            "dumpsys window windows | grep -E 'APPLICATION_OVERLAY|isVisible=true' | head -10",
+        )
+        return "paquete=${device.currentPackageName}\n" +
+            "actividad:\n$activity\nventanas:\n$windows\njerarquía:\n$tree"
     }
 
     private fun shell(command: String): String {
