@@ -46,13 +46,15 @@ class RoutineTransferTest {
     private lateinit var transfer: RoutineTransfer
 
     @Before
-    fun setUp() = runBlocking {
-        db = inMemoryDatabase()
-        routines = RoutineRepository(db)
-        exercises = ExerciseRepository(db)
-        settings = SettingsRepository(db)
-        transfer = RoutineTransfer(db, routines, exercises, settings)
-        SeedImporter(db).seedIfEmpty(seedJson)
+    fun setUp() {
+        runBlocking {
+            db = inMemoryDatabase()
+            routines = RoutineRepository(db)
+            exercises = ExerciseRepository(db)
+            settings = SettingsRepository(db)
+            transfer = RoutineTransfer(db, routines, exercises, settings)
+            SeedImporter(db).seedIfEmpty(seedJson)
+        }
     }
 
     @After
