@@ -232,10 +232,10 @@ internal class RoutineTransfer(
         fun uniqueName(source: String): String {
             val base = source.trim().ifBlank { "Rutina importada" }
             if (usedNames.add(normalize(base))) return base
+            if (usedNames.add(normalize("$base (importada)"))) return "$base (importada)"
             var copy = 2
             while (true) {
-                val suffix = if (copy == 2) " (importada)" else " (importada $copy)"
-                val candidate = "$base$suffix"
+                val candidate = "$base (importada $copy)"
                 if (usedNames.add(normalize(candidate))) return candidate
                 copy += 1
             }
