@@ -14,7 +14,7 @@ app, no sólo los que faltan en la lista de tickets.
 | **GIM-26** | No había gráfico de PR | Progreso → PR: selector de ejercicio, rango 3 M/6 M/1 A/Todo, curva de e1RM por sesión y tarjeta con valor, fecha, serie y delta contra el PR anterior |
 | **GIM-27** | No había volumen por semana ni series por músculo | Progreso → Volumen: barras por semana o por sesión, semana actual vs anterior y `Meter` por músculo con banda y estado |
 | **GIM-28** | El peso corporal sólo se anotaba en Hoy | Progreso → Peso: curva, promedio móvil de 7 días, delta desde el inicio y registros editables/borrables |
-| **GIM-29** | Ajustes era un placeholder con steppers y chips que no hacían nada | Todos los ajustes de §8 conectados a `app_setting`, alertas por capas, tema real aplicado por `GimCheckTheme` y **export de backup** completo (JSON del contrato) |
+| **GIM-29** | Ajustes era un placeholder con steppers y chips que no hacían nada | 18 de las 19 claves de §8 conectadas a `app_setting` (falta `unit`, que exige conversión global: GIM-50), alertas por capas, tema real aplicado por `GimCheckTheme` y **export de backup** completo (JSON del contrato) |
 | **GIM-18** | El catálogo de ejercicios era un placeholder | Buscador, filtro por músculo, alta/edición con principal, multiarticular, carga, tiempos y secundarios con factor; aviso "en N lugares" y alta de músculos sin duplicados |
 | **GIM-19** | Comparar era un placeholder | Dos selectores A/B, tabla resumen con delta (B−A), duración por día, series por músculo con banda y toggle de indirectas |
 
@@ -53,6 +53,9 @@ app, no sólo los que faltan en la lista de tickets.
 | **GIM-33 / GIM-34** | abierto | Robustez del gate local (`check-core.sh`) y correcciones de docs. No son UX de la app; tienen criterios propios |
 | **GIM-15** | abierto | Auditoría de diseño de las 9 pantallas: ahora que existen, se puede hacer contra `docs/diseno.md` |
 | **GIM-41 / GIM-42** | obsoletos | El ADR 0007 vigente es `docs/adr/0007-entrenamiento-libre.md` y GIM-49 ya implementó el entrenamiento libre. Deberían cancelarse o reescribirse: piden un "selector rutina → día → ejercicio" y una rotación por rondas que el ADR vigente descartó |
+| **GIM-50** | abierto | Unidades kg/lb: el ajuste existe pero la UI muestra kg en todos lados. Requiere conversión global y test de ida y vuelta |
+| **GIM-51** | abierto | Restaurar un backup propio (hoy sólo se exporta; el import existente es el de la web) |
+| **GIM-52** | abierto | Búsqueda/filtro en Historial: la lista por semana se hace larga con muchos meses |
 
 ## Deudas menores (no bloquean usar la app)
 
