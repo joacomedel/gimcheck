@@ -146,7 +146,13 @@ jobs:
           emulator-options: >-
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
             -camera-back none -camera-front none
-          script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
+          # La pantalla encendida evita el cambio de estado de display que dispara el
+          # NPE del renderer en API 34 (`ThreadedRenderer.setTargetHdrSdrRatio`).
+          script: |
+            adb shell svc power stayon true
+            adb shell settings put system screen_off_timeout 2147483647
+            adb shell wm dismiss-keyguard
+            ./gradlew :app:connectedDebugAndroidTest --stacktrace
 
       - name: Resultados instrumentados (siempre)
         if: always()

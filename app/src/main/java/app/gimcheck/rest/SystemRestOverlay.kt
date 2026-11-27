@@ -125,10 +125,16 @@ class SystemRestOverlay(context: Context) : RestOverlayPresenter {
     }
 
     private fun fullScreenParams(): WindowManager.LayoutParams {
+        // FLAG_HARDWARE_ACCELERATED no es opcional: una ventana agregada por
+        // WindowManager (fuera de una Activity) se dibuja por software si no se pide.
+        // En el emulador API 34 eso termina en un NPE del sistema
+        // (`ThreadedRenderer.setTargetHdrSdrRatio` sobre un renderer nulo) que mata el
+        // proceso de la app. Además el overlay se dibuja con GPU, como cualquier pantalla.
         val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         return WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,

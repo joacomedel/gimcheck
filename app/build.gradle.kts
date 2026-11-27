@@ -21,14 +21,29 @@ android {
     compileSdk = 37
     compileSdkMinor = 0
 
+    // Firma estable para los APK de prueba. La debug key que genera cada runner de CI
+    // es distinta, y Android rechaza instalar una compilación sobre otra firmada con
+    // otra clave ("App not installed"): el dueño quedaba clavado en el primer APK.
+    // Esta clave vive en el repo porque es una **debug key** (no protege nada, es la
+    // misma convención que ~/.android/debug.keystore); GIM-30 la reemplaza por la de
+    // release. Con esto, cada APK de CI se instala encima del anterior sin desinstalar.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = rootProject.file("ci/gimcheck-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "app.gimcheck"
         minSdk = 26
         // targetSdk se mantiene en 36 (contrato del ticket): compilar contra 37 no
         // cambia el comportamiento de target.
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.0-debug"
 
         // Tests instrumentados del aviso de fin de descanso (GIM-44): corren en el
         // emulador de CI, no en este equipo (ver docs/build.md).
