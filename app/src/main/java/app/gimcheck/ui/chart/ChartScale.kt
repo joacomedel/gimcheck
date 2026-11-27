@@ -55,7 +55,9 @@ fun niceAxis(
     hi += pad
     if (includeZero) lo = minOf(0.0, lo)
     val step = niceStep((hi - lo) / 2.0)
-    val niceLo = floor(lo / step) * step
+    // Con `includeZero` el cero es el piso del eje: un mínimo negativo haría que las
+    // barras de volumen arrancaran abajo de la línea base y el gráfico mintiera.
+    val niceLo = if (includeZero) 0.0 else floor(lo / step) * step
     val niceHi = ceil(hi / step) * step
     return AxisScale(niceLo, niceHi, (niceLo + niceHi) / 2.0)
 }

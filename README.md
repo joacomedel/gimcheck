@@ -14,7 +14,7 @@ teléfono del dueño (QA) y el release por tag.
 
 | Pieza | Estado |
 |---|---|
-| `:core` (dominio Kotlin puro) | **completo para v1**: modelo y migrador de la web (`v1..v21`), `dayStats`, volumen por músculo, superseries, e1RM (Epley/Brzycki) + PR, sesión guiada histórica, validadores, export/import JSON y agregados de Progreso. **+120 tests**, paridad con la web verificada (`docs/paridad-web.md`) |
+| `:core` (dominio Kotlin puro) | **completo para v1**: modelo y migrador de la web (`v1..v21`), `dayStats`, volumen por músculo, superseries, e1RM (Epley/Brzycki) + PR, sesión guiada histórica, validadores, export/import JSON y agregados de Progreso. **128 tests**, paridad con la web verificada (`docs/paridad-web.md`) |
 | `:app` (Android) | Room v1 + 5 repositorios, seed con las dos rutinas del dueño, 9 pantallas, 6 ViewModels, cronómetro de descanso en primer plano y alerta en tres capas |
 | Pantallas | **9 de 9 implementadas**; la auditoría de diseño formal es GIM-15 |
 | Gráficos | Canvas propio (`ui/chart`): línea con área y PR, barras de volumen, barras por músculo con `Meter` |

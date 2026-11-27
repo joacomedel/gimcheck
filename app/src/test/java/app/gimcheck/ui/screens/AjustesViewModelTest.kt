@@ -96,7 +96,11 @@ class AjustesViewModelTest {
         viewModel.setOptMin(12)
         viewModel.setFormula(E1rmFormula.BRZYCKI)
 
-        val state = awaitState { it.settings.warm == 10 && it.settings.optMin == 12 }
+        val state = awaitState {
+            it.settings.warm == 10 &&
+                it.settings.optMin == 12 &&
+                it.settings.e1rmFormula == E1rmFormula.BRZYCKI
+        }
         assertEquals(10, state.settings.warm)
         assertEquals(12, state.settings.optMin)
         assertEquals(E1rmFormula.BRZYCKI, state.settings.e1rmFormula)
