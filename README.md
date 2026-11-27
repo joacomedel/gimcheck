@@ -64,15 +64,16 @@ gh workflow run build.yml --repo joacomedel/gimcheck --ref master
 gh run list --repo joacomedel/gimcheck --workflow build.yml --limit 5
 ```
 
-Última corrida del job principal verde al escribir esto: run
-[46018755480](https://github.com/joacomedel/gimcheck/actions/runs/46018755480), job
-`:core:test + :app:test + lint + assembleDebug` en `success`, artifact de 13.550.308 B
-(13,55 MB / 12,92 MiB). El workflow tiene además el job de emulador (GIM-44), que puede
-tardar más o fallar por infraestructura sin afectar el APK: para el estado actual, siempre
+Última corrida verde al escribir esto: run
+[46046361500](https://github.com/joacomedel/gimcheck/actions/runs/46046361500), con el job
+`:core:test + :app:test + lint + assembleDebug` y el job de emulador (API 34) en `success`;
+artifact de 13.609.671 B (13,61 MB / 12,98 MiB). El job de emulador puede fallar por
+infraestructura (renderer del AVD) sin que el APK esté mal: para el estado actual, siempre
 `gh run list --repo joacomedel/gimcheck --workflow build.yml --limit 5`.
 
-No hay `connectedAndroidTest`, no hay emulador (ni acá ni en CI) y no se puede correr
-`:app:assembleDebug` en el Moto. Cualquier instrucción que diga lo contrario está vieja.
+En el Moto no hay emulador ni se puede correr `:app:assembleDebug`; el job de emulador vive
+sólo en CI y cubre el aviso de fin de descanso. Cualquier instrucción que diga lo contrario
+está vieja.
 
 ## Cómo se instala el APK
 
@@ -89,7 +90,7 @@ Tres caminos, de más nuevo a más viejo:
      --repo joacomedel/gimcheck -n gimcheck-debug.apk -D /tmp/opencode/apk
    ```
 
-   El artifact contiene un único archivo `app-debug.apk` (~11,8 MB). Se copia al teléfono por
+   El artifact contiene un único archivo `app-debug.apk` (~13 MB). Se copia al teléfono por
    `adb`/MTP/lo que haya y se instala a mano.
 3. **Copia local ya bajada**: `/root/dist/gimcheck/gimcheck-debug.apk` (build del 2026-11-17
    23:01, el mismo APK del run citado). Sirve para reinstalar sin red.

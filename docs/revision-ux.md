@@ -107,13 +107,15 @@ no duela:
 
 ## Cómo se verificó
 
-- `:core`: `./scripts/check-core.sh` (tests nuevos de `Progress` incluidos).
-- `:app`: tests JVM con Robolectric de los cuatro ViewModels nuevos
-  (`HistorialViewModelTest`, `ProgresoViewModelTest`, `AjustesViewModelTest`,
-  `EjerciciosViewModelTest`) + `ChartScaleTest` y `AlertModeTest`. Corren en CI
-  (`:app:testDebugUnitTest`), no en el Moto (no hay SDK Android arm64).
-- CI: run [46018755480](https://github.com/joacomedel/gimcheck/actions/runs/46018755480),
-  job `:core:test + :app:test + lint + assembleDebug` en `success` (commit `3459e3e`).
+- `:core`: `./scripts/check-core.sh` (137 tests; incluye `RoutinePackTest` con ida y
+  vuelta del pack, plan de la web y backup).
+- `:app`: tests JVM con Robolectric de los ViewModels y de `RoutineTransfer`
+  (`RoutineTransferTest`: pack completo, reutilización por nombre, plan de la web,
+  doble import y archivo inválido). Corren en CI (`:app:testDebugUnitTest`), no en el
+  Moto (no hay SDK Android arm64).
+- CI: run [46046361500](https://github.com/joacomedel/gimcheck/actions/runs/46046361500),
+  job `:core:test + :app:test + lint + assembleDebug` y job de emulador en `success`
+  (commit `7d68a86`, APK 13.609.671 B).
 - **No hay verificación visual acá**: la hace el dueño instalando el APK. Para esta
   tanda conviene mirar:
   1. Historial: terminar un entrenamiento y verlo en la semana con volumen y PR.
@@ -121,3 +123,6 @@ no duela:
      Ajustes y volver a Progreso (la curva cambia sin perder datos).
   3. Ajustes: cambiar a tema claro y volver; exportar backup y abrir el JSON.
   4. Ejercicios: crear uno nuevo, usarlo en un día y ver "en 1 lugar".
+  5. Rutinas: "Exportar todas", guardar el archivo y volver a importarlo; debería
+     aparecer una copia con " (importada)" y la rutina nueva seleccionada. Repetir con
+     un plan exportado de la web.
