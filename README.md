@@ -65,10 +65,11 @@ gh run list --repo joacomedel/gimcheck --workflow build.yml --limit 5
 ```
 
 Última corrida verde al escribir esto: run
-[46046361500](https://github.com/joacomedel/gimcheck/actions/runs/46046361500), con el job
-`:core:test + :app:test + lint + assembleDebug` y el job de emulador (API 34) en `success`;
-artifact de 13.609.671 B (13,61 MB / 12,98 MiB). El job de emulador puede fallar por
-infraestructura (renderer del AVD) sin que el APK esté mal: para el estado actual, siempre
+[46057301725](https://github.com/joacomedel/gimcheck/actions/runs/46057301725), con el job
+`:core:test + :app:test + lint + assembleDebug` y el job de emulador (API 34) en `success`
+—incluye el smoke test **entrar → Salir → volver a abrir** y el test JVM del entrenamiento
+abierto en Hoy—; artifact de 14.218.093 B (14,22 MB / 13,56 MiB). El job de emulador puede
+fallar por infraestructura (renderer del AVD): para el estado actual, siempre
 `gh run list --repo joacomedel/gimcheck --workflow build.yml --limit 5`.
 
 En el Moto no hay emulador ni se puede correr `:app:assembleDebug`; el job de emulador vive
@@ -90,13 +91,16 @@ Tres caminos, de más nuevo a más viejo:
      --repo joacomedel/gimcheck -n gimcheck-debug.apk -D /tmp/opencode/apk
    ```
 
-   El artifact contiene un único archivo `app-debug.apk` (~13 MB). Se copia al teléfono por
+   El artifact contiene un único archivo `app-debug.apk` (~14 MB). Se copia al teléfono por
    `adb`/MTP/lo que haya y se instala a mano.
-3. **Copia local ya bajada**: `/root/dist/gimcheck/gimcheck-debug.apk` (build del 2026-11-17
-   23:01, el mismo APK del run citado). Sirve para reinstalar sin red.
+3. **Copia local ya bajada**: `/root/dist/gimcheck/gimcheck-debug.apk` (APK del run
+   46057301725, 2026-11-27). Sirve para reinstalar sin red.
 
-El APK está firmado con el **debug keystore** autogenerado por AGP: se sideloadea, no se publica.
-Reinstalar sobre otra copia con distinta firma exige desinstalar antes.
+El APK está firmado con `ci/gimcheck-debug.keystore`, una **debug key fija** commiteada
+(no la de release: GIM-30). Es a propósito: la debug key autogenerada por cada runner era
+distinta y Android rechazaba instalar un build sobre el anterior ("App not installed").
+Las builds nuevas se instalan encima sin desinstalar. La única excepción es un APK viejo
+firmado con otra clave: hay que desinstalarlo una vez (y eso borra los datos de la app).
 
 ## Gate local (sin Android SDK)
 

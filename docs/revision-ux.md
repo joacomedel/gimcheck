@@ -105,17 +105,43 @@ no duela:
 - **Ver resumen desde Hoy**: el resumen del día ya existe al terminar; desde el
   entrenamiento abierto se llega saliendo de Entrenar, no hay un acceso directo.
 
+## El cierre al salir de Entrenar (2026-11-27)
+
+El reporte del dueño ("al salir me saca de la app y cuando vuelvo a intentar entrar no
+anda") tenía dos causas, las dos reproducidas en el emulador:
+
+1. **Hoy se caía al calcular los minutos del entrenamiento abierto.** `HoyViewModel`
+   hacía `Duration.between(startedAt.toJavaLocalDateTime(), nowInstant())`: mezclaba un
+   `LocalDateTime` con un `Instant`, y `java.time` lanza `DateTimeException`. La rama
+   corre cuando hay una sesión `ACTIVE`, o sea al volver de Entrenar y al reabrir la app
+   con el entrenamiento abierto; la excepción mataba el proceso en el dispatcher de la
+   UI. De ahí el "me saca" y el "no entra".
+2. **El overlay de "Descanso terminado" podía quedar pegado encima de la app.**
+   `SystemRestOverlay.show` agregaba la ventana y después publicaba `active`; si un
+   `dismiss` caía en el medio, la ventana quedaba sin referencia y no había forma de
+   retirarla. Además el retiro usaba `removeViewImmediate` desde el hilo que llamaba:
+   desde uno que no era el main lanzaba `CalledFromWrongThreadException`, el `catch` la
+   tragaba y la ventana seguía visible. Al abrir la app, Hoy quedaba tapada y parecía
+   que no abría.
+
+Arreglos: Hoy usa `now()` (LocalDateTime) para la duración, con test JVM que crea una
+sesión abierta y verifica los minutos; el overlay marca la vista como pendiente antes de
+`addView`, la retira si el hide la canceló y remueve siempre en el main looper. El smoke
+test instrumentado `EntrenarExitDeviceTest` recorre entrar → Salir → confirmar → Hoy con
+"Seguir entrenando" → home → reabrir.
+
 ## Cómo se verificó
 
 - `:core`: `./scripts/check-core.sh` (137 tests; incluye `RoutinePackTest` con ida y
   vuelta del pack, plan de la web y backup).
 - `:app`: tests JVM con Robolectric de los ViewModels y de `RoutineTransfer`
   (`RoutineTransferTest`: pack completo, reutilización por nombre, plan de la web,
-  doble import y archivo inválido). Corren en CI (`:app:testDebugUnitTest`), no en el
-  Moto (no hay SDK Android arm64).
-- CI: run [46046361500](https://github.com/joacomedel/gimcheck/actions/runs/46046361500),
-  job `:core:test + :app:test + lint + assembleDebug` y job de emulador en `success`
-  (commit `7d68a86`, APK 13.609.671 B).
+  doble import y archivo inválido; `HoyViewModelTest`: entrenamiento abierto y minutos).
+  Corren en CI (`:app:testDebugUnitTest`), no en el Moto (no hay SDK Android arm64).
+- Emulador API 34: `RestAlertDeviceTest` (overlay, alarma, canal) y
+  `EntrenarExitDeviceTest` (entrar/salir/reabrir) en verde.
+- CI: run [46057301725](https://github.com/joacomedel/gimcheck/actions/runs/46057301725),
+  los dos jobs en `success` (commit `16c3e09`, APK 14.218.093 B).
 - **No hay verificación visual acá**: la hace el dueño instalando el APK. Para esta
   tanda conviene mirar:
   1. Historial: terminar un entrenamiento y verlo en la semana con volumen y PR.

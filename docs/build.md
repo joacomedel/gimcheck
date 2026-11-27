@@ -389,8 +389,11 @@ no hay que citar como estado actual: `44203129493` (`89120ce`), `44183688530` (`
 
 Cómo se genera el APK: `assembleDebug` compila `:core`, compila `:app` (Kotlin
 built-in de AGP + Compose compiler 2.2.10), procesa recursos con `aapt2`,
-dexea con D8 y firma con el debug keystore autogenerado por AGP. El archivo queda
-en `app/build/outputs/apk/debug/app-debug.apk`.
+dexea con D8 y firma con `ci/gimcheck-debug.keystore` (clave fija commiteada;
+ver `app/build.gradle.kts`). La clave fija es a propósito: la debug key
+autogenerada por cada runner es distinta y Android rechaza instalar un APK
+sobre otro firmado con otra clave. Es una clave de **prueba**, no la de
+release (GIM-30). El archivo queda en `app/build/outputs/apk/debug/app-debug.apk`.
 
 Runner `ubuntu-latest` (x86_64, 4 vCPU, 16 GB): el único lugar donde existe
 `aapt2`. Repositorio **público** → minutos ilimitados (ADR 0002).
